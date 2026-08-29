@@ -1,0 +1,9 @@
+{
+  "name": "atcon-assignment",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@11.24.0",
+  "engines": {
+    "node": ">=24.14.0"
+  }
+}
