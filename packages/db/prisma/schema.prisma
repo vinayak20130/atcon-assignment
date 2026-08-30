@@ -1,0 +1,74 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Who can log in. Candidates are deliberately absent — they have no account
+/// and reach their application through a signed link instead.
+enum UserRole {
+  RECRUITER
+  INTERVIEWER
+
+  @@map("user_roles")
+}
+
+/// The tenancy boundary.
+///
+/// Single-tenant in practice, but every table carries orgId: the column is free
+/// now and painful to retrofit, and it marks where the boundary would go.
+model Organization {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  users User[]
+
+  @@map("organizations")
+}
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  orgId        String   @map("org_id") @db.Uuid
+  email        String
+  passwordHash String   @map("password_hash")
+  fullName     String   @map("full_name")
+  role         UserRole
+  /// Deactivation rather than deletion: users are actors in the audit trail,
+  /// and removing one would orphan the history of every decision they made.
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  org           Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  refreshTokens RefreshToken[]
+
+  /// Unique per organization, not globally — the same person could work at two.
+  @@unique([orgId, email])
+  @@index([orgId, role])
+  @@map("users")
+}
+
+/// Refresh tokens, stored hashed and rotated on every use.
+///
+/// `replacedById` makes reuse of an already-rotated token detectable, which is
+/// the signal that a token was stolen. The response is to revoke the whole
+/// chain rather than refuse the single request.
+model RefreshToken {
+  id           String    @id @default(uuid()) @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  tokenHash    String    @unique @map("token_hash")
+  expiresAt    DateTime  @map("expires_at")
+  revokedAt    DateTime? @map("revoked_at")
+  replacedById String?   @map("replaced_by_id") @db.Uuid
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@map("refresh_tokens")
+}
