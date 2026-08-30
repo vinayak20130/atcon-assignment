@@ -1,5 +1,4 @@
 import { Module } from '@nestjs/common';
-import { createObserveModule } from '@nestjs/observe';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './modules/prisma/prisma.module';
@@ -16,8 +15,6 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { OutboxModule } from './modules/outbox/outbox.module';
 import { HealthController } from './modules/health.controller';
-
-export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
 @Module({
   imports: [
