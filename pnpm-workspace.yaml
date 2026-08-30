@@ -3,7 +3,13 @@ packages:
   - 'packages/*'
 
 allowBuilds:
+  prisma: true
+  '@prisma/engines': true
+  bcrypt: true
+  esbuild: true
   '@parcel/watcher': true
   '@scarf/scarf': false
   msgpackr-extract: true
   unrs-resolver: true
+  # Cloudflare's runtime, pulled in transitively by vitest. Not used here.
+  workerd: false

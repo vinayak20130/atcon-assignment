@@ -1,3 +1,7 @@
+import path from 'node:path';
+import { config as loadEnv } from 'dotenv';
+loadEnv({ path: path.resolve(__dirname, '../../../.env'), quiet: true });
+
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 
