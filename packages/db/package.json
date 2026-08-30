@@ -6,25 +6,32 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" },
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
     "./package.json": "./package.json"
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "generate": "prisma generate",
     "migrate": "prisma migrate dev",
-    "studio": "prisma studio"
+    "studio": "prisma studio",
+    "seed": "tsx prisma/seed.ts",
+    "reset": "prisma migrate reset --force"
   },
   "dependencies": {
-    "@prisma/client": "7.10.0"
+    "@prisma/client": "6.19.3"
   },
   "devDependencies": {
     "@atcon/shared": "workspace:*",
     "@types/node": "^26.4.0",
     "dotenv": "^17.4.2",
-    "prisma": "7.10.0",
+    "prisma": "6.19.3",
     "tsx": "^4.23.12",
     "typescript": "^7.0.2"
   }
