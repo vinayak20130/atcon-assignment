@@ -1,0 +1,29 @@
+# Local development stack.
+#
+# Services are added as the code that needs them is written, rather than
+# provisioned up front. Redis arrives with the queue, MinIO with file upload,
+# Mailpit with notifications.
+name: atcon-assignment
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: atcon
+      POSTGRES_PASSWORD: atcon
+      POSTGRES_DB: atcon_assignment
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      # Postgres briefly accepts then drops connections during init, so wait
+      # for a real ready signal rather than a port check.
+      test: ['CMD-SHELL', 'pg_isready -U atcon -d atcon_assignment']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:
