@@ -18,6 +18,8 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { OutboxModule } from './modules/outbox/outbox.module';
 import { HealthController } from './modules/health.controller';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
+import { RolesGuard } from './modules/auth/guards/roles.guard';
+import { UsersModule } from './modules/users/users.module';
 
 @Module({
   imports: [
@@ -28,6 +30,7 @@ import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
     ParsingModule,
     IdempotencyModule,
     AuthModule,
+    UsersModule,
     JobsModule,
     ApplicationsModule,
     CandidatesModule,
@@ -43,6 +46,9 @@ import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
     // is protected by default, so forgetting a decorator locks an endpoint
     // rather than exposing one.
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    // Order is load-bearing: RolesGuard reads the user that JwtAuthGuard
+    // puts on the request, so it must run second.
+    { provide: APP_GUARD, useClass: RolesGuard },
   ],
 })
 export class AppModule {}
