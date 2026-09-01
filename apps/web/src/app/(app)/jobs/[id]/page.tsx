@@ -94,7 +94,7 @@ export default function BoardPage() {
   const movable = job.stages.filter((s) => s.type !== 'APPLIED');
 
   return (
-    <>
+    <div className="board-page">
       <div className="page-head">
         <div className="eyebrow">
           <Link href="/jobs">Requisitions</Link> / Board
@@ -174,6 +174,6 @@ export default function BoardPage() {
           );
         })}
       </div>
-    </>
+    </div>
   );
 }

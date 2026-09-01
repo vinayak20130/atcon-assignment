@@ -162,6 +162,12 @@ select {
   padding: 28px 24px 64px;
 }
 
+.main:has(.board-page) {
+  max-width: none;
+  width: 100%;
+  padding: 24px 18px 18px;
+}
+
 .page-head {
   margin-bottom: 22px;
 }
@@ -370,11 +376,13 @@ select {
   display: flex;
   gap: 12px;
   overflow-x: auto;
+  min-height: calc(100vh - 190px);
   padding-bottom: 12px;
 }
 
 .column {
-  flex: 0 0 250px;
+  flex: 1 0 240px;
+  min-width: 240px;
   background: var(--surface-sunk);
   border-radius: var(--radius-lg);
   padding: 10px;
