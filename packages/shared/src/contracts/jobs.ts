@@ -10,8 +10,13 @@ export const stageDefinitionSchema = z.object({
 });
 export type StageDefinitionInput = z.infer<typeof stageDefinitionSchema>;
 
-// Without a REJECTED stage there's nowhere to put most applicants and the
-// funnel maths quietly breaks. Enforced here so it can't be created that way.
+/**
+ * A pipeline must be able to express both outcomes.
+ *
+ * Without a REJECTED stage there is nowhere to put the majority of applicants
+ * and the funnel maths silently breaks. Enforced in the schema so a pipeline
+ * cannot be created in that state at all.
+ */
 const stageListSchema = z
   .array(stageDefinitionSchema)
   .min(2, 'A pipeline needs at least an entry stage and an outcome.')
@@ -25,8 +30,13 @@ const stageListSchema = z
     'A pipeline needs a REJECTED stage — most applicants end there, and the funnel depends on it.',
   );
 
-// Split from the .refine() below because chaining wraps the object in
-// ZodEffects; the exported type comes off this base so inference stays clean.
+/**
+ * The shape, kept separate from the cross-field rule below.
+ *
+ * Chaining `.refine()` wraps the object in ZodEffects, and the exported type is
+ * taken from the base shape so inference stays clean while the rule still runs
+ * at validation time.
+ */
 const jobCreateShape = z.object({
   title: z.string().trim().min(3).max(120),
   slug: z
@@ -59,9 +69,13 @@ export const jobCreateSchema = jobCreateShape.refine(
 );
 export type JobCreateInput = z.infer<typeof jobCreateShape>;
 
-// Its own endpoint rather than a field on update. Publishing isn't an edit: it
-// starts the time-to-fill clock and makes the posting public, so it wants
-// separate authorization and its own audit entry.
+/**
+ * Status changes are their own endpoint rather than a field on update.
+ *
+ * Publishing is not an edit — it starts the time-to-fill clock and makes the
+ * posting world-readable. A distinct route can be separately authorized and
+ * separately audited.
+ */
 export const jobStatusChangeSchema = z.object({
   status: z.enum(JobStatus),
   reason: z.string().trim().max(500).optional(),

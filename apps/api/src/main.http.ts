@@ -1,3 +1,4 @@
+import 'reflect-metadata';
 import path from 'node:path';
 import { config as loadEnv } from 'dotenv';
 loadEnv({ path: path.resolve(__dirname, '../../../.env'), quiet: true });
@@ -11,8 +12,9 @@ import type { Env } from './config/env';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // URI versioning so a breaking change can ship alongside the old shape
-  // instead of needing a coordinated client deploy.
+  // Every route is /api/v1/... — the prefix keeps the API distinguishable from
+  // static assets behind one host, and URI versioning makes a breaking change
+  // additive rather than a coordinated deploy.
   app.setGlobalPrefix('api');
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
 

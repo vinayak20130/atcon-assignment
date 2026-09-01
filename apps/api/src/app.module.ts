@@ -42,10 +42,12 @@ import { UsersModule } from './modules/users/users.module';
   controllers: [AppController, HealthController],
   providers: [
     AppService,
-    // Global and opt-out — forgetting a decorator locks an endpoint rather than
-    // exposing one.
+    // Authentication is global and opt-out: a route added without @Public()
+    // is protected by default, so forgetting a decorator locks an endpoint
+    // rather than exposing one.
     { provide: APP_GUARD, useClass: JwtAuthGuard },
-    // Must stay second: it reads the user JwtAuthGuard puts on the request.
+    // Order is load-bearing: RolesGuard reads the user that JwtAuthGuard
+    // puts on the request, so it must run second.
     { provide: APP_GUARD, useClass: RolesGuard },
   ],
 })

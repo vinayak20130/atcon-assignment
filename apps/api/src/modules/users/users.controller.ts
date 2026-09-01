@@ -10,8 +10,14 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
 import { UsersService } from './users.service';
 
-// No admin role, so any recruiter can add colleagues including other
-// recruiters. The boundary that matters here is the organization, not seniority.
+/**
+ * Recruiter-only.
+ *
+ * With two roles there is no separate administrator, so any recruiter may add
+ * colleagues — including other recruiters. For a team this size a privilege
+ * boundary between recruiters would be ceremony; the boundary that matters, and
+ * is enforced, is the organization.
+ */
 @Roles(UserRole.RECRUITER)
 @Controller({ path: 'users', version: '1' })
 export class UsersController {

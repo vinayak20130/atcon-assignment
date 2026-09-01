@@ -28,7 +28,9 @@ model Organization {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   users     User[]
-  jobs      JobRequisition[]
+  jobs         JobRequisition[]
+  candidates   Candidate[]
+  applications Application[]
   templates PipelineTemplate[]
 
   @@map("organizations")
@@ -146,7 +148,8 @@ model JobRequisition {
   createdBy        User              @relation("JobCreatedBy", fields: [createdById], references: [id])
   pipelineTemplate PipelineTemplate? @relation(fields: [pipelineTemplateId], references: [id], onDelete: SetNull)
 
-  stages      JobStage[]
+  stages       JobStage[]
+  applications Application[]
   assignments JobAssignment[]
 
   @@unique([orgId, slug])
@@ -171,7 +174,8 @@ model JobStage {
   /// Days in this stage before an application is flagged stagnant.
   slaDays           Int?      @map("sla_days")
 
-  job JobRequisition @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  job          JobRequisition @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  applications Application[]
 
   @@unique([jobId, position])
   @@index([jobId, type])
@@ -234,4 +238,160 @@ model PipelineTemplateStage {
 
   @@unique([templateId, position])
   @@map("pipeline_template_stages")
+}
+
+enum ApplicationStatus {
+  ACTIVE
+  HIRED
+  REJECTED
+  WITHDRAWN
+
+  @@map("application_statuses")
+}
+
+enum ApplicationSource {
+  CAREERS_PAGE
+  REFERRAL
+  SOURCED
+  IMPORT
+
+  @@map("application_sources")
+}
+
+enum IdentityKeyType {
+  EMAIL
+  PHONE
+  RESUME_HASH
+
+  @@map("identity_key_types")
+}
+
+enum ParseStatus {
+  PENDING
+  SUCCEEDED
+  PARTIAL
+  FAILED
+
+  @@map("parse_statuses")
+}
+
+/// A person being evaluated. Not a User: no password, never logs in.
+///
+/// They reach their application through a signed link instead, so there is no
+/// account to create, no password to reset, and no candidate credential to leak.
+model Candidate {
+  id       String  @id @default(uuid()) @db.Uuid
+  orgId    String  @map("org_id") @db.Uuid
+  fullName String  @map("full_name")
+  /// Normalized name — the blocking key for fuzzy duplicate matching later.
+  nameKey  String  @map("name_key")
+  headline String?
+  location String?
+
+  primaryEmail String? @map("primary_email")
+  primaryPhone String? @map("primary_phone")
+  linkedinUrl  String? @map("linkedin_url")
+
+  /// Denormalized for tag-style filtering. Skills are messy free text with no
+  /// stable identity, so an array beats a join table that would fill with
+  /// near-duplicate rows.
+  skills String[] @default([])
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  org          Organization           @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  identityKeys CandidateIdentityKey[]
+  applications Application[]
+  documents    Document[]
+
+  @@index([orgId, nameKey])
+  @@map("candidates")
+}
+
+/// Tier 1 of duplicate detection.
+///
+/// The unique index IS the rule: the database refuses a second candidate
+/// carrying the same normalized email or E.164 phone, so correctness does not
+/// depend on application code remembering to check first.
+model CandidateIdentityKey {
+  id          String          @id @default(uuid()) @db.Uuid
+  orgId       String          @map("org_id") @db.Uuid
+  candidateId String          @map("candidate_id") @db.Uuid
+  type        IdentityKeyType
+  /// The normalized form — never what the candidate typed.
+  value       String
+  createdAt   DateTime        @default(now()) @map("created_at")
+
+  candidate Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, type, value])
+  @@index([candidateId])
+  @@map("candidate_identity_keys")
+}
+
+model Application {
+  id             String            @id @default(uuid()) @db.Uuid
+  orgId          String            @map("org_id") @db.Uuid
+  jobId          String            @map("job_id") @db.Uuid
+  candidateId    String            @map("candidate_id") @db.Uuid
+  /// Denormalized read model, rebuildable by replaying the event log.
+  currentStageId String            @map("current_stage_id") @db.Uuid
+  status         ApplicationStatus @default(ACTIVE)
+  source         ApplicationSource @default(CAREERS_PAGE)
+
+  /// Start of the clock for time-to-hire.
+  appliedAt DateTime  @default(now()) @map("applied_at")
+  decidedAt DateTime? @map("decided_at")
+  /// Last activity. Lets the stagnation sweep avoid scanning the event log.
+  lastActivityAt DateTime @default(now()) @map("last_activity_at")
+
+  coverLetter String? @map("cover_letter")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  org          Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  job          JobRequisition @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  candidate    Candidate      @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  currentStage JobStage       @relation(fields: [currentStageId], references: [id])
+  documents    Document[]
+
+  // "One ACTIVE application per candidate per requisition" is a PARTIAL unique
+  // index added in a raw migration: Prisma cannot express WHERE on a unique
+  // index, and a plain one would also block re-applying after a rejection,
+  // which is a policy decision rather than a database invariant.
+  @@index([orgId, jobId, status])
+  @@index([candidateId])
+  @@map("applications")
+}
+
+model Document {
+  id            String  @id @default(uuid()) @db.Uuid
+  orgId         String  @map("org_id") @db.Uuid
+  candidateId   String  @map("candidate_id") @db.Uuid
+  /// Resumes are tailored per role, so a document belongs to the application it
+  /// arrived with, while staying indexed on the candidate.
+  applicationId String? @map("application_id") @db.Uuid
+
+  /// Object storage key. The bucket is private and the API hands out
+  /// short-lived presigned URLs, so a resume is never reachable by guessing.
+  storageKey String @map("storage_key")
+  filename   String
+  mimeType   String @map("mime_type")
+  sizeBytes  Int    @map("size_bytes")
+  /// Content hash. A dedupe signal and a re-upload guard — indexed but
+  /// deliberately not unique, since the same file may legitimately be sent to
+  /// two different requisitions.
+  sha256     String
+
+  parseStatus ParseStatus @default(PENDING) @map("parse_status")
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  candidate   Candidate    @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  application Application? @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+
+  @@index([orgId, sha256])
+  @@index([candidateId])
+  @@map("documents")
 }

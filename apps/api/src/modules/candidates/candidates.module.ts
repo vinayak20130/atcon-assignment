@@ -1,9 +1,11 @@
-import { Module } from '@nestjs/common';
-import { CandidatesService } from './candidates.service';
-import { CandidatesController } from './candidates.controller';
+import { Global, Module } from '@nestjs/common';
+import { CandidateIdentityService } from './candidate-identity.service';
 
+// Global because identity resolution is needed wherever a candidate can enter
+// the system — public intake today, CSV import and referrals later.
+@Global()
 @Module({
-  providers: [CandidatesService],
-  controllers: [CandidatesController]
+  providers: [CandidateIdentityService],
+  exports: [CandidateIdentityService],
 })
 export class CandidatesModule {}

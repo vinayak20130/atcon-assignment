@@ -12,8 +12,13 @@ export const ActorType = {
   CANDIDATE: 'CANDIDATE',
 } as const;
 export type ActorType = (typeof ActorType)[keyof typeof ActorType];
-// "Founder Chat" and "Final Round" are both INTERVIEW. Metrics and guards key
-// off this, never the name, so renaming a stage can't break analytics.
+/**
+ * The semantic role of a stage, independent of its display name.
+ *
+ * A stage called "Founder Chat" and one called "Final Round" can both be
+ * INTERVIEW. Metrics and guards key off this, never off the name, so a recruiter
+ * renaming a stage cannot break analytics.
+ */
 export const StageType = {
   APPLIED: 'APPLIED',
   SCREEN: 'SCREEN',

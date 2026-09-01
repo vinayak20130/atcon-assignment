@@ -13,10 +13,19 @@ import {
 } from '@atcon/shared';
 import { PrismaService } from '../prisma/prisma.service';
 
-// Creating a requisition COPIES the template's stages into JobStage rows it
-// owns; applications point at those. Pointing them at the template instead
-// saves a table and corrupts every historical metric the first time someone
-// reorders it.
+/**
+ * Requisitions and their pipelines.
+ *
+ * The decision worth pointing at is the stage COPY. A PipelineTemplate is a
+ * reusable blueprint; creating a requisition copies its stages into JobStage
+ * rows owned by that requisition, and applications point at those. Editing the
+ * template afterwards therefore cannot reshape a pipeline that candidates are
+ * already sitting in, or retroactively change what past conversion rates meant.
+ *
+ * The alternative — pointing applications at template stages — is one table
+ * fewer, and corrupts every historical metric the first time someone reorders a
+ * template.
+ */
 @Injectable()
 export class JobsService {
   private readonly logger = new Logger(JobsService.name);
@@ -72,8 +81,13 @@ export class JobsService {
     return job;
   }
 
-  // openedAt is set exactly once. Reopening a paused requisition must not
-  // restart time-to-fill: the role has been open the whole time.
+  /**
+   * Publish, pause, close or fill.
+   *
+   * `openedAt` is set exactly once. Reopening a paused requisition must not
+   * restart the time-to-fill clock — from the business's point of view the role
+   * has been open the whole time.
+   */
   async changeStatus(jobId: string, input: JobStatusChangeInput, actor: AuthenticatedUser) {
     const job = await this.prisma.jobRequisition.findFirst({
       where: { id: jobId, orgId: actor.orgId },
@@ -110,8 +124,13 @@ export class JobsService {
     return updated;
   }
 
-  // Append only. Reordering or deleting would move candidates nobody decided to
-  // move, and change what past conversion rates meant.
+  /**
+   * Append a stage to a requisition.
+   *
+   * Appending only. Reordering or deleting a stage is not offered at all,
+   * because either would move candidates without a decision and change what
+   * past conversion rates meant.
+   */
   async appendStage(jobId: string, stage: StageDefinitionInput, actor: AuthenticatedUser) {
     const job = await this.prisma.jobRequisition.findFirst({
       where: { id: jobId, orgId: actor.orgId },
@@ -134,8 +153,12 @@ export class JobsService {
     });
   }
 
-  // The contract already guarantees exactly one of template/inline is present,
-  // and that either way there's a HIRED and a REJECTED stage.
+  /**
+   * Which stage list a new requisition should copy.
+   *
+   * Either an explicit list or a template — the contract already guarantees one
+   * of them is present, and that both contain a HIRED and a REJECTED stage.
+   */
   private async resolveStages(
     orgId: string,
     input: JobCreateInput,
@@ -160,8 +183,12 @@ export class JobsService {
     return template.stages as StageDefinitionInput[];
   }
 
-  // CLOSED can reopen, FILLED cannot: the openings are gone, and reopening
-  // would let hires exceed them.
+  /**
+   * Legal status transitions.
+   *
+   * A closed requisition can be reopened; a filled one cannot, because the
+   * openings are gone and reopening would let the hire count exceed them.
+   */
   private assertStatusChangeIsLegal(from: JobStatus, to: JobStatus): void {
     const allowed: Record<JobStatus, JobStatus[]> = {
       [JobStatus.DRAFT]: [JobStatus.OPEN, JobStatus.CLOSED],
