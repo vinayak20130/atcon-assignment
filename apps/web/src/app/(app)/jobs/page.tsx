@@ -40,9 +40,14 @@ export default function JobsPage() {
         <div className="eyebrow">Requisitions</div>
         <div className="head-row">
           <h1>Your pipelines</h1>
-          <Link href="/jobs/new" className="btn" data-variant="primary">
-            New requisition
-          </Link>
+          <div className="actions-row" style={{ marginTop: 0 }}>
+            <Link href="/jobs/templates" className="btn">
+              Templates
+            </Link>
+            <Link href="/jobs/new" className="btn" data-variant="primary">
+              New opening
+            </Link>
+          </div>
         </div>
         <p className="lede">
           Only the requisitions you are assigned to. Access is scoped per requisition rather than
@@ -53,7 +58,12 @@ export default function JobsPage() {
       {jobs.length === 0 ? (
         <div className="empty">
           <strong>No requisitions assigned</strong>
-          Ask a colleague to add you to one, or sign in as another user.
+          Post an opening to start a pipeline, or ask a colleague to assign you to one.
+          <div style={{ marginTop: 14 }}>
+            <Link href="/jobs/new" className="btn" data-variant="primary">
+              New opening
+            </Link>
+          </div>
         </div>
       ) : (
         <div className="grid grid-2">

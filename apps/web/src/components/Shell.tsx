@@ -7,6 +7,7 @@ import { type SessionUser, clearSession, getToken, getUser } from '@/lib/api';
 
 const NAV = [
   { href: '/jobs', label: 'Requisitions' },
+  { href: '/jobs/templates', label: 'Templates', recruiterOnly: true },
   { href: '/insights', label: 'Insights' },
 ];
 
@@ -34,8 +35,16 @@ export function Shell({ children }: { children: React.ReactNode }) {
           North<span>wind</span>
         </Link>
         <nav className="nav">
-          {NAV.map((item) => (
-            <Link key={item.href} href={item.href} data-active={pathname.startsWith(item.href) || undefined}>
+          {NAV.filter((item) => !item.recruiterOnly || user.role === 'RECRUITER').map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              data-active={
+                item.href === '/jobs'
+                  ? (pathname.startsWith('/jobs') && !pathname.startsWith('/jobs/templates')) || undefined
+                  : pathname.startsWith(item.href) || undefined
+              }
+            >
               {item.label}
             </Link>
           ))}

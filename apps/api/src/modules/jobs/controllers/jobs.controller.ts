@@ -3,10 +3,14 @@ import {
   type AuthenticatedUser,
   type JobCreateInput,
   type JobStatusChangeInput,
+  type PipelineTemplateCopyInput,
+  type PipelineTemplateCreateInput,
   type StageDefinitionInput,
   UserRole,
   jobCreateSchema,
   jobStatusChangeSchema,
+  pipelineTemplateCopySchema,
+  pipelineTemplateCreateSchema,
   stageDefinitionSchema,
 } from '@atcon/shared';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
@@ -27,6 +31,23 @@ export class JobsController {
   @Get('templates')
   templates(@CurrentUser() user: AuthenticatedUser) {
     return this.jobs.listTemplates(user);
+  }
+
+  @Post('templates')
+  createTemplate(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body(new ZodValidationPipe(pipelineTemplateCreateSchema)) body: PipelineTemplateCreateInput,
+  ) {
+    return this.jobs.createTemplate(body, user);
+  }
+
+  @Post('templates/:id/copy')
+  copyTemplate(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(new ZodValidationPipe(pipelineTemplateCopySchema)) body: PipelineTemplateCopyInput,
+  ) {
+    return this.jobs.copyTemplate(id, body, user);
   }
 
   @Get(':id')

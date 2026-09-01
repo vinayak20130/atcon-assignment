@@ -388,6 +388,83 @@ select {
   gap: 8px;
   margin-top: 18px;
 }
+.stage-rail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.stage-rail li {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 0.8125rem;
+}
+.stage-rail .mono {
+  font-size: 0.6875rem;
+  color: var(--ink-faint);
+}
+.segmented {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--surface-sunk);
+  margin-bottom: 14px;
+}
+.segmented button {
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  padding: 7px 10px;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+.segmented button[data-active='true'] {
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgba(20, 24, 31, 0.08);
+}
+.stage-editor {
+  display: grid;
+  gap: 8px;
+}
+.stage-row {
+  display: grid;
+  grid-template-columns: minmax(110px, 1fr) minmax(95px, 0.75fr);
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.stage-row input,
+.stage-row select {
+  min-width: 0;
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-size: 0.8125rem;
+}
+.mini-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 32px;
+  font-size: 0.75rem;
+  color: var(--ink-muted);
+}
+.mini-check input {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--accent);
+}
 
 /* Honeypot: hidden from people, left in the DOM for bots to fill. */
 .trap {

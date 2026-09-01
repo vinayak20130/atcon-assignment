@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { FormEvent, Suspense, useEffect, useMemo, useState } from 'react';
+import { DEFAULT_STAGES, StageEditor, pipelineHasOutcomes, stagesToPayload, type StageDraft } from '@/components/StageEditor';
 import { ApiError, api } from '@/lib/api';
 
 interface PipelineTemplate {
@@ -30,10 +31,14 @@ const EMPLOYMENT_TYPES = [
   { value: 'INTERNSHIP', label: 'Internship' },
 ] as const;
 
-export default function NewJobPage() {
+function NewJobForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const requestedTemplate = searchParams.get('template') ?? '';
   const [templates, setTemplates] = useState<PipelineTemplate[]>([]);
   const [templateId, setTemplateId] = useState('');
+  const [pipelineMode, setPipelineMode] = useState<'template' | 'custom'>('template');
+  const [stages, setStages] = useState<StageDraft[]>(DEFAULT_STAGES);
   const [title, setTitle] = useState('');
   const [department, setDepartment] = useState('');
   const [location, setLocation] = useState('Remote');
@@ -49,14 +54,18 @@ export default function NewJobPage() {
     api<{ data: PipelineTemplate[] }>('/jobs/templates')
       .then((response) => {
         setTemplates(response.data);
-        setTemplateId(response.data.find((template) => template.isDefault)?.id ?? response.data[0]?.id ?? '');
+        const preferred =
+          response.data.find((template) => template.id === requestedTemplate) ??
+          response.data.find((template) => template.isDefault) ??
+          response.data[0];
+        setTemplateId(preferred?.id ?? '');
       })
       .catch((caught) => {
         const message = caught instanceof ApiError ? caught.message : 'Could not load pipeline templates.';
         setNotice({ tone: 'error', text: message });
       })
       .finally(() => setLoadingTemplates(false));
-  }, []);
+  }, [requestedTemplate]);
 
   const selectedTemplate = useMemo(
     () => templates.find((template) => template.id === templateId),
@@ -65,8 +74,12 @@ export default function NewJobPage() {
 
   async function createJob(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!templateId) {
+    if (pipelineMode === 'template' && !templateId) {
       setNotice({ tone: 'error', text: 'Choose a pipeline template before creating the requisition.' });
+      return;
+    }
+    if (pipelineMode === 'custom' && !pipelineHasOutcomes(stages)) {
+      setNotice({ tone: 'error', text: 'Custom pipelines need both Hired and Rejected stages.' });
       return;
     }
 
@@ -83,7 +96,7 @@ export default function NewJobPage() {
           employmentType,
           isRemote,
           openings,
-          pipelineTemplateId: templateId,
+          ...(pipelineMode === 'template' ? { pipelineTemplateId: templateId } : { stages: stagesToPayload(stages) }),
           assigneeIds: [],
         }),
       });
@@ -104,8 +117,8 @@ export default function NewJobPage() {
         </div>
         <h1>New requisition</h1>
         <p className="lede">
-          Create a draft job from a pipeline template. Publishing still happens from the API status
-          flow, so the time-to-hire clock starts only when the requisition is opened.
+          Create a draft opening, choose a pipeline, then publish from the board when it should
+          appear on the careers page.
         </p>
       </div>
 
@@ -199,50 +212,93 @@ export default function NewJobPage() {
         </section>
 
         <aside className="form-side card">
-          <label className="field">
-            <span>Pipeline template</span>
-            <select
-              required
-              disabled={loadingTemplates || templates.length === 0}
-              value={templateId}
-              onChange={(event) => setTemplateId(event.target.value)}
+          <div className="segmented">
+            <button
+              type="button"
+              data-active={pipelineMode === 'template'}
+              onClick={() => setPipelineMode('template')}
             >
-              {loadingTemplates ? <option value="">Loading templates…</option> : null}
-              {!loadingTemplates && templates.length === 0 ? <option value="">No templates found</option> : null}
-              {templates.map((template) => (
-                <option key={template.id} value={template.id}>
-                  {template.name}
-                </option>
-              ))}
-            </select>
-          </label>
+              Template
+            </button>
+            <button
+              type="button"
+              data-active={pipelineMode === 'custom'}
+              onClick={() => setPipelineMode('custom')}
+            >
+              Custom
+            </button>
+          </div>
 
-          {selectedTemplate ? (
-            <div className="template-preview">
-              <div className="metric-note">{selectedTemplate.description}</div>
-              <ol>
-                {selectedTemplate.stages.map((stage) => (
-                  <li key={`${stage.position}-${stage.type}`}>
-                    <span>{stage.name}</span>
-                    <span className="metric-note">{stage.type.toLowerCase().replace('_', ' ')}</span>
-                  </li>
-                ))}
-              </ol>
-            </div>
+          {pipelineMode === 'template' ? (
+            <>
+              <label className="field">
+                <span>Pipeline template</span>
+                <select
+                  required
+                  disabled={loadingTemplates || templates.length === 0}
+                  value={templateId}
+                  onChange={(event) => setTemplateId(event.target.value)}
+                >
+                  {loadingTemplates ? <option value="">Loading templates…</option> : null}
+                  {!loadingTemplates && templates.length === 0 ? <option value="">No templates found</option> : null}
+                  {templates.map((template) => (
+                    <option key={template.id} value={template.id}>
+                      {template.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              {selectedTemplate ? (
+                <div className="template-preview">
+                  <div className="metric-note">{selectedTemplate.description}</div>
+                  <ol>
+                    {selectedTemplate.stages.map((stage) => (
+                      <li key={`${stage.position}-${stage.type}`}>
+                        <span>{stage.name}</span>
+                        <span className="metric-note">{stage.type.toLowerCase().replace('_', ' ')}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              ) : (
+                <p className="metric-note">
+                  {loadingTemplates
+                    ? 'Templates will appear here once they load.'
+                    : 'Create a template first, or switch to a custom pipeline.'}
+                </p>
+              )}
+
+              <p className="metric-note" style={{ marginTop: 12 }}>
+                <Link href="/jobs/templates">Manage templates</Link>
+              </p>
+            </>
           ) : (
-            <p className="metric-note">Templates will appear here once they load.</p>
+            <StageEditor stages={stages} onChange={setStages} />
           )}
 
           <div className="actions-row">
             <Link href="/jobs" className="btn">
               Cancel
             </Link>
-            <button className="btn" data-variant="primary" disabled={submitting || !templateId}>
+            <button
+              className="btn"
+              data-variant="primary"
+              disabled={submitting || (pipelineMode === 'template' && !templateId)}
+            >
               {submitting ? 'Creating…' : 'Create draft'}
             </button>
           </div>
         </aside>
       </form>
     </>
+  );
+}
+
+export default function NewJobPage() {
+  return (
+    <Suspense fallback={<p className="lede">Loading form…</p>}>
+      <NewJobForm />
+    </Suspense>
   );
 }

@@ -89,3 +89,15 @@ export const pipelineTemplateCreateSchema = z.object({
   stages: stageListSchema,
 });
 export type PipelineTemplateCreateInput = z.infer<typeof pipelineTemplateCreateSchema>;
+
+export const pipelineTemplateCopySchema = z.preprocess(
+  (value) => value ?? {},
+  z.object({
+    name: z.string().trim().min(3).max(80).optional(),
+    isDefault: z.boolean().default(false),
+  }),
+);
+export type PipelineTemplateCopyInput = {
+  name?: string;
+  isDefault: boolean;
+};

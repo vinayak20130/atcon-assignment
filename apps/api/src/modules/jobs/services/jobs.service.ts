@@ -1,15 +1,20 @@
 import {
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
+import { Prisma } from '@atcon/db';
 import {
   type AuthenticatedUser,
   type JobCreateInput,
   type JobStatusChangeInput,
+  type PipelineTemplateCopyInput,
+  type PipelineTemplateCreateInput,
   type StageDefinitionInput,
   JobStatus,
+  nextPipelineTemplateCopyName,
 } from '@atcon/shared';
 import { JobScopeService } from '../../auth/services/job-scope.service';
 import { PrismaService } from '../../prisma/services/prisma.service';
@@ -64,25 +69,91 @@ export class JobsService {
     const data = await this.prisma.pipelineTemplate.findMany({
       where: { orgId: user.orgId },
       orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        isDefault: true,
-        stages: {
-          orderBy: { position: 'asc' },
-          select: {
-            name: true,
-            position: true,
-            type: true,
-            requiresScorecard: true,
-            slaDays: true,
-          },
-        },
-      },
+      select: TEMPLATE_SELECT,
     });
 
     return { data };
+  }
+
+  /**
+   * A reusable blueprint. Creating a requisition copies these stages; this
+   * write never reshapes a pipeline candidates are already sitting in.
+   */
+  async createTemplate(input: PipelineTemplateCreateInput, actor: AuthenticatedUser) {
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        if (input.isDefault) {
+          await tx.pipelineTemplate.updateMany({
+            where: { orgId: actor.orgId, isDefault: true },
+            data: { isDefault: false },
+          });
+        }
+
+        return tx.pipelineTemplate.create({
+          data: {
+            orgId: actor.orgId,
+            name: input.name,
+            description: input.description,
+            isDefault: input.isDefault,
+            stages: {
+              create: input.stages.map((stage, index) => ({
+                name: stage.name,
+                position: index,
+                type: stage.type,
+                requiresScorecard: stage.requiresScorecard,
+                slaDays: stage.slaDays ?? null,
+              })),
+            },
+          },
+          select: TEMPLATE_SELECT,
+        });
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictException('A pipeline template with that name already exists.');
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Duplicate a template so a recruiter can fork a pipeline without editing
+   * the original. Existing requisitions keep the copy they were created from.
+   */
+  async copyTemplate(templateId: string, input: PipelineTemplateCopyInput, actor: AuthenticatedUser) {
+    const source = await this.prisma.pipelineTemplate.findFirst({
+      where: { id: templateId, orgId: actor.orgId },
+      select: {
+        name: true,
+        description: true,
+        stages: {
+          orderBy: { position: 'asc' },
+          select: { name: true, type: true, requiresScorecard: true, slaDays: true },
+        },
+      },
+    });
+    if (!source) throw new NotFoundException('That pipeline template could not be found.');
+    if (source.stages.length === 0) {
+      throw new UnprocessableEntityException('That pipeline template has no stages.');
+    }
+
+    const existing = await this.prisma.pipelineTemplate.findMany({
+      where: { orgId: actor.orgId },
+      select: { name: true },
+    });
+
+    return this.createTemplate(
+      {
+        name: input.name ?? nextPipelineTemplateCopyName(
+          source.name,
+          existing.map((template) => template.name),
+        ),
+        description: source.description ?? undefined,
+        isDefault: input.isDefault,
+        stages: source.stages as StageDefinitionInput[],
+      },
+      actor,
+    );
   }
 
   async detail(user: AuthenticatedUser, jobId: string) {
@@ -315,3 +386,20 @@ function slugify(title: string): string {
     .replace(/^-+|-+$/g, '')
     .slice(0, 80);
 }
+
+const TEMPLATE_SELECT = {
+  id: true,
+  name: true,
+  description: true,
+  isDefault: true,
+  stages: {
+    orderBy: { position: 'asc' as const },
+    select: {
+      name: true,
+      position: true,
+      type: true,
+      requiresScorecard: true,
+      slaDays: true,
+    },
+  },
+};

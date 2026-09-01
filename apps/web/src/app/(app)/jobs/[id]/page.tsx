@@ -18,6 +18,7 @@ interface JobDetail {
   id: string;
   title: string;
   status: string;
+  slug: string;
   stages: Stage[];
 }
 interface AppRow {
@@ -89,6 +90,21 @@ export default function BoardPage() {
     }
   }
 
+  async function changeStatus(status: string, label: string) {
+    setNotice(null);
+    try {
+      await api(`/jobs/${id}/status`, {
+        method: 'POST',
+        body: JSON.stringify({ status }),
+      });
+      setNotice({ tone: 'ok', text: label });
+      load();
+    } catch (caught) {
+      const message = caught instanceof ApiError ? caught.message : `Could not ${label.toLowerCase()}.`;
+      setNotice({ tone: 'error', text: message });
+    }
+  }
+
   if (!job) return <p className="lede">Loading board…</p>;
 
   const movable = job.stages.filter((s) => s.type !== 'APPLIED');
@@ -99,7 +115,38 @@ export default function BoardPage() {
         <div className="eyebrow">
           <Link href="/jobs">Requisitions</Link> / Board
         </div>
-        <h1>{job.title}</h1>
+        <div className="head-row">
+          <div>
+            <h1>{job.title}</h1>
+            <div className="cand-meta" style={{ marginTop: 5 }}>
+              {job.status.toLowerCase()}
+            </div>
+          </div>
+          <div className="actions-row" style={{ marginTop: 0 }}>
+            {job.status === 'OPEN' ? (
+              <>
+                <Link href={`/careers/${job.slug}`} className="btn" target="_blank">
+                  Public posting
+                </Link>
+                <button className="btn" onClick={() => void changeStatus('PAUSED', 'Requisition paused.')}>
+                  Pause
+                </button>
+                <button className="btn" onClick={() => void changeStatus('CLOSED', 'Requisition closed.')}>
+                  Close
+                </button>
+              </>
+            ) : null}
+            {job.status === 'DRAFT' || job.status === 'PAUSED' || job.status === 'CLOSED' ? (
+              <button
+                className="btn"
+                data-variant="primary"
+                onClick={() => void changeStatus('OPEN', 'Requisition published.')}
+              >
+                {job.status === 'DRAFT' ? 'Publish' : 'Reopen'}
+              </button>
+            ) : null}
+          </div>
+        </div>
         <p className="lede">
           Move candidates through the pipeline. Interview stages show a Cal.com booking button —
           schedule the call, then grade and advance once done.
