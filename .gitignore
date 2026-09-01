@@ -36,3 +36,8 @@ Thumbs.db
 
 # Uploaded documents
 storage/
+
+# Build output
+.next/
+.turbo/
+storage/
