@@ -10,6 +10,12 @@ const duration = z
   .regex(/^\d+[smhd]$/, 'expected a duration like 15m or 7d')
   .transform((value) => value as DurationString);
 
+const booleanish = z
+  .union([z.boolean(), z.string()])
+  .transform((value) =>
+    typeof value === 'boolean' ? value : ['true', '1', 'yes', 'on'].includes(value.trim().toLowerCase()),
+  );
+
 export const envSchema = z.object({
   NODE_ENV: z
     .enum(['development', 'test', 'production'])
@@ -31,6 +37,20 @@ export const envSchema = z.object({
 
   API_PORT: port.default(4000),
   API_PUBLIC_URL: z.string().url(),
+  /** Where a candidate-facing link should point. */
+  WEB_PUBLIC_URL: z.string().url().default('http://localhost:3000'),
+
+  SMTP_HOST: z.string().default('localhost'),
+  SMTP_PORT: port.default(1025),
+  // Parsed by hand rather than with z.coerce.boolean(), which reads the string
+  // "false" as true — every non-empty string is truthy — and would silently
+  // turn TLS on against a dev mail catcher that does not speak it.
+  SMTP_SECURE: booleanish.default(false),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASSWORD: z.string().optional(),
+  MAIL_FROM: z.string().default('Northwind Talent <talent@northwind.test>'),
+  /** Set false to log notifications instead of sending them. */
+  MAIL_ENABLED: booleanish.default(true),
 });
 
 export type Env = z.infer<typeof envSchema>;

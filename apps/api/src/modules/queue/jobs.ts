@@ -6,6 +6,7 @@
 
 export const QUEUE = {
   RESUME_PARSE: 'resume.parse',
+  NOTIFICATION_SEND: 'notification.send',
   MAINTENANCE: 'maintenance',
 } as const;
 
@@ -23,12 +24,30 @@ export interface ResumeParseJob extends JobEnvelope {
   candidateId: string;
 }
 
+/**
+ * Everything the mailer needs is resolved when the job runs, not when it is
+ * queued — so the payload carries ids, not an email address.
+ *
+ * A candidate who corrects their address between applying and the worker
+ * running should get the mail at the corrected one, and an address frozen into
+ * the payload could not do that.
+ */
+export interface NotificationJob extends JobEnvelope {
+  applicationId: string;
+  interviewId?: string;
+}
+
 // Outbox eventType values, and the queue each is relayed to.
 //
 // Keeping the mapping in one table means the relay stays a dumb pipe: it never
 // grows a switch statement that has to be kept in step with the producers.
 export const EVENT_ROUTING = {
   'resume.parse.requested': QUEUE.RESUME_PARSE,
+  // Adding a notification is a line in this table plus a template. The relay
+  // and the processor never learn what the new event means.
+  'application.received': QUEUE.NOTIFICATION_SEND,
+  'interview.scheduled': QUEUE.NOTIFICATION_SEND,
+  'application.rejected': QUEUE.NOTIFICATION_SEND,
   'maintenance.requested': QUEUE.MAINTENANCE,
 } as const satisfies Record<string, QueueName>;
 

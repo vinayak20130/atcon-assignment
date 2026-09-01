@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
+import { NotificationsModule } from '../modules/notifications/notifications.module';
 import { ParsingModule } from '../modules/parsing/parsing.module';
 import { QueueModule } from '../modules/queue/queue.module';
+import { NotificationProcessor } from './notification.processor';
 import { ResumeParseProcessor } from './resume-parse.processor';
 
 // Registered in the shared AppModule, so the HTTP process constructs them too.
@@ -8,7 +10,7 @@ import { ResumeParseProcessor } from './resume-parse.processor';
 // keeping one module graph means processors and controllers cannot drift onto
 // different versions of the domain rules.
 @Module({
-  imports: [QueueModule, ParsingModule],
-  providers: [ResumeParseProcessor],
+  imports: [QueueModule, ParsingModule, NotificationsModule],
+  providers: [ResumeParseProcessor, NotificationProcessor],
 })
 export class ProcessorsModule {}
