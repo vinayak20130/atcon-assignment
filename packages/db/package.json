@@ -19,10 +19,11 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "generate": "prisma generate",
-    "migrate": "prisma migrate dev",
+    "migrate": "prisma migrate deploy",
     "studio": "prisma studio",
     "seed": "tsx prisma/seed.ts",
-    "reset": "prisma migrate reset --force"
+    "reset": "prisma migrate reset --force",
+    "migrate:dev": "prisma migrate dev"
   },
   "dependencies": {
     "@prisma/client": "6.19.3"
