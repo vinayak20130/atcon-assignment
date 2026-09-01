@@ -1,0 +1,11 @@
+{
+  "/_not-found/page": "/_not-found",
+  "/login/page": "/login",
+  "/page": "/",
+  "/(public)/careers/page": "/careers",
+  "/(public)/careers/[slug]/page": "/careers/[slug]",
+  "/(app)/applications/[id]/page": "/applications/[id]",
+  "/(app)/insights/page": "/insights",
+  "/(app)/jobs/page": "/jobs",
+  "/(app)/jobs/[id]/page": "/jobs/[id]"
+}
