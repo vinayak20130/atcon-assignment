@@ -91,7 +91,6 @@ export default function BoardPage() {
 
   if (!job) return <p className="lede">Loading board…</p>;
 
-  const active = applications.filter((a) => a.status === 'ACTIVE');
   const movable = job.stages.filter((s) => s.type !== 'APPLIED');
 
   return (
@@ -115,7 +114,7 @@ export default function BoardPage() {
 
       <div className="board">
         {job.stages.map((stage) => {
-          const cards = active.filter((a) => a.currentStage.id === stage.id);
+          const cards = applications.filter((a) => a.currentStage.id === stage.id);
           const isInterviewStage = stage.type === 'INTERVIEW' || stage.type === 'ASSESSMENT';
 
           return (

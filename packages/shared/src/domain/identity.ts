@@ -117,3 +117,17 @@ export function normalizePersonName(raw: string | null | undefined): string {
     .replace(/\s+/g, ' ')
     .trim();
 }
+
+/**
+ * Clean a person's name for display and storage.
+ *
+ * This is intentionally conservative: remove HTML tags, then normalize
+ * whitespace. Escaping happens at render/email boundaries, but names should not
+ * be stored with pasted markup in the first place.
+ */
+export function normalizeDisplayName(raw: string | null | undefined): string {
+  return (raw ?? '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}

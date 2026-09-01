@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import type { Prisma } from '@atcon/db';
-import { normalizeEmail, normalizePersonName, normalizePhone } from '@atcon/shared';
+import { normalizeDisplayName, normalizeEmail, normalizePersonName, normalizePhone } from '@atcon/shared';
 
 export interface ResolvedCandidate {
   candidateId: string;
@@ -44,6 +44,7 @@ export class CandidateIdentityService {
   ): Promise<ResolvedCandidate> {
     const email = normalizeEmail(input.email);
     const phone = normalizePhone(input.phone, input.defaultCountry as never);
+    const fullName = normalizeDisplayName(input.fullName);
 
     const lookups: Array<{ type: 'EMAIL' | 'PHONE'; value: string }> = [];
     if (email) lookups.push({ type: 'EMAIL', value: email.key });
@@ -67,8 +68,8 @@ export class CandidateIdentityService {
     const candidate = await tx.candidate.create({
       data: {
         orgId,
-        fullName: input.fullName,
-        nameKey: normalizePersonName(input.fullName),
+        fullName,
+        nameKey: normalizePersonName(fullName),
         primaryEmail: email?.display ?? null,
         primaryPhone: phone?.key ?? null,
         location: input.location ?? null,
