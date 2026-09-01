@@ -24,6 +24,11 @@ export class JobsController {
     return this.jobs.listVisible(user);
   }
 
+  @Get('templates')
+  templates(@CurrentUser() user: AuthenticatedUser) {
+    return this.jobs.listTemplates(user);
+  }
+
   @Get(':id')
   detail(@CurrentUser() user: AuthenticatedUser, @Param('id', ParseUUIDPipe) id: string) {
     return this.jobs.detail(user, id);

@@ -60,6 +60,31 @@ export class JobsService {
     return { data };
   }
 
+  async listTemplates(user: AuthenticatedUser) {
+    const data = await this.prisma.pipelineTemplate.findMany({
+      where: { orgId: user.orgId },
+      orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        isDefault: true,
+        stages: {
+          orderBy: { position: 'asc' },
+          select: {
+            name: true,
+            position: true,
+            type: true,
+            requiresScorecard: true,
+            slaDays: true,
+          },
+        },
+      },
+    });
+
+    return { data };
+  }
+
   async detail(user: AuthenticatedUser, jobId: string) {
     await this.requireScope(user, jobId, 'view');
 

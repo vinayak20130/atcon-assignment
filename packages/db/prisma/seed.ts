@@ -90,7 +90,7 @@ async function main() {
       where: {
         templateId_position: { templateId: template.id, position: stage.position },
       },
-      update: {},
+      update: stage,
       create: { templateId: template.id, ...stage },
     });
   }
