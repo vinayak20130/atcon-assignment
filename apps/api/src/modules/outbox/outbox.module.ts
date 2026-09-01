@@ -2,6 +2,7 @@ import { Global, Module } from '@nestjs/common';
 import { QueueModule } from '../queue/queue.module';
 import { OutboxController } from './controllers/outbox.controller';
 import { OutboxRelayService } from './services/outbox-relay.service';
+import { OutboxAdminService } from './services/outbox-admin.service';
 import { OutboxService } from './services/outbox.service';
 
 // Global: any module that changes state needs to record the side effects of
@@ -14,7 +15,7 @@ import { OutboxService } from './services/outbox.service';
 @Module({
   imports: [QueueModule],
   controllers: [OutboxController],
-  providers: [OutboxService, OutboxRelayService],
+  providers: [OutboxService, OutboxRelayService, OutboxAdminService],
   exports: [OutboxService, OutboxRelayService],
 })
 export class OutboxModule {}

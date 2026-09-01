@@ -4,7 +4,21 @@
 // this demo simple and CSRF-free at the cost of not surviving a tab close. A
 // production build would move to httpOnly cookies with the refresh rotation the
 // API already implements.
-export const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
+
+// NEXT_PUBLIC_API_URL wins when set. Otherwise the API is assumed to sit on
+// port 4000 of whatever host served this page: opened from a phone on the LAN,
+// a hardcoded "localhost" would point at the phone itself rather than the dev
+// machine, and every request would fail before it left the device.
+function resolveApiBase(): string {
+  const configured = process.env.NEXT_PUBLIC_API_URL;
+  if (configured) return configured;
+  if (typeof window !== 'undefined') {
+    return `${window.location.protocol}//${window.location.hostname}:4000`;
+  }
+  return 'http://localhost:4000';
+}
+
+export const API_BASE = resolveApiBase();
 
 const TOKEN_KEY = 'atcon.token';
 const USER_KEY = 'atcon.user';

@@ -4,7 +4,7 @@ import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { config as loadEnv } from 'dotenv';
 import { AppModule } from './app.module';
-import { OutboxRelayService } from './modules/outbox/outbox-relay.service';
+import { OutboxRelayService } from './modules/outbox/services/outbox-relay.service';
 
 loadEnv({ path: path.resolve(__dirname, '../../../.env'), quiet: true });
 

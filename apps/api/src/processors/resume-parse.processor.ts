@@ -2,8 +2,8 @@ import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
 import type { Job } from 'bullmq';
 import { Prisma } from '@atcon/db';
-import { PrismaService } from '../modules/prisma/prisma.service';
-import { StorageService } from '../modules/storage/storage.service';
+import { PrismaService } from '../modules/prisma/services/prisma.service';
+import { StorageService } from '../modules/storage/services/storage.service';
 import { ResumeParser } from '../modules/parsing/resume-parser';
 import { QUEUE, type ResumeParseJob } from '../modules/queue/jobs';
 

@@ -11,6 +11,7 @@ import {
   type StageDefinitionInput,
   JobStatus,
 } from '@atcon/shared';
+import { JobScopeService } from '../../auth/services/job-scope.service';
 import { PrismaService } from '../../prisma/services/prisma.service';
 
 /**
@@ -30,7 +31,64 @@ import { PrismaService } from '../../prisma/services/prisma.service';
 export class JobsService {
   private readonly logger = new Logger(JobsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly scope: JobScopeService,
+  ) {}
+
+  /**
+   * Requisitions this recruiter is assigned to.
+   *
+   * Scoped inside the query rather than filtered afterwards, so an unassigned
+   * requisition is invisible — not even as a count.
+   */
+  async listVisible(user: AuthenticatedUser) {
+    const data = await this.prisma.jobRequisition.findMany({
+      where: this.scope.visibleJobsFilter(user),
+      orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+      select: {
+        id: true,
+        title: true,
+        slug: true,
+        status: true,
+        department: true,
+        location: true,
+        openings: true,
+        openedAt: true,
+      },
+    });
+    return { data };
+  }
+
+  async detail(user: AuthenticatedUser, jobId: string) {
+    await this.requireScope(user, jobId, 'view');
+
+    return this.prisma.jobRequisition.findFirst({
+      where: { id: jobId, orgId: user.orgId },
+      include: {
+        // These stages belong to the requisition, not to the template it came
+        // from. That is the copy.
+        stages: { orderBy: { position: 'asc' } },
+        assignments: {
+          select: { isOwner: true, user: { select: { id: true, fullName: true } } },
+        },
+        pipelineTemplate: { select: { id: true, name: true } },
+      },
+    });
+  }
+
+  /**
+   * Assert scope, or report the requisition as missing.
+   *
+   * Not-found rather than forbidden: a recruiter should not be able to learn
+   * that a requisition exists on a team they are not part of. Kept here rather
+   * than in the controller so no route can be added that forgets it.
+   */
+  private async requireScope(user: AuthenticatedUser, jobId: string, need: 'view' | 'manage') {
+    const scope = await this.scope.forJob(user, jobId);
+    const permitted = need === 'view' ? scope.canView : scope.canManage;
+    if (!permitted) throw new NotFoundException('That requisition could not be found.');
+  }
 
   async create(input: JobCreateInput, actor: AuthenticatedUser) {
     const stages = await this.resolveStages(actor.orgId, input);
@@ -89,6 +147,8 @@ export class JobsService {
    * has been open the whole time.
    */
   async changeStatus(jobId: string, input: JobStatusChangeInput, actor: AuthenticatedUser) {
+    await this.requireScope(actor, jobId, 'manage');
+
     const job = await this.prisma.jobRequisition.findFirst({
       where: { id: jobId, orgId: actor.orgId },
       select: {
@@ -132,6 +192,8 @@ export class JobsService {
    * past conversion rates meant.
    */
   async appendStage(jobId: string, stage: StageDefinitionInput, actor: AuthenticatedUser) {
+    await this.requireScope(actor, jobId, 'manage');
+
     const job = await this.prisma.jobRequisition.findFirst({
       where: { id: jobId, orgId: actor.orgId },
       select: {
