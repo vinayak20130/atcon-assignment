@@ -55,8 +55,10 @@ export class JobScopeService {
       case UserRole.RECRUITER:
         return { orgId: user.orgId, assignments: { some: { userId: user.id } } };
       case UserRole.INTERVIEWER:
-        // Interviewers reach work through the interviews they are on, never
-        // through a requisition. Until interviews exist, they see nothing.
+        // Interviewers reach work through the panels they sit on, never by
+        // browsing requisitions — so this filter is correctly empty. Their
+        // access is granted in InterviewsService, which scopes by panel
+        // membership rather than by job.
         return matchesNothing(user.orgId);
     }
   }

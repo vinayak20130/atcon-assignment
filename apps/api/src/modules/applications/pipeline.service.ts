@@ -11,6 +11,7 @@ import {
   type StageRef,
   type TransitionKind,
   TransitionDenialCode,
+  countPendingScorecards,
   evaluateTransition,
 } from '@atcon/shared';
 import { Prisma } from '@atcon/db';
@@ -90,16 +91,26 @@ export class PipelineService {
         where: { jobId: application.job.id, status: 'HIRED' },
       });
 
+      // Scorecards outstanding at the stage being left — not across the whole
+      // application. An unscored screen should not block an offer the candidate
+      // has already earned; it should only block leaving the screen.
+      const interviewsAtStage = await tx.interview.findMany({
+        where: { applicationId, stageId: application.currentStageId },
+        select: {
+          id: true,
+          status: true,
+          panelists: { select: { userId: true, isRequired: true } },
+          scorecards: { select: { id: true, interviewerId: true, submittedAt: true } },
+        },
+      });
+
       const decision = evaluateTransition(
         {
           applicationStatus: application.status,
           currentStageId: application.currentStageId,
           jobStatus: application.job.status,
           openingsRemaining: application.job.openings - hiredCount,
-          // Scorecards do not exist yet, so nothing is outstanding. When
-          // interviews land this becomes a real count and the guard starts
-          // biting without the state machine changing at all.
-          pendingScorecardCount: 0,
+          pendingScorecardCount: countPendingScorecards(interviewsAtStage),
           stages: application.job.stages as StageRef[],
           actor: {
             id: actor.id,

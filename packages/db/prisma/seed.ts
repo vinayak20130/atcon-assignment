@@ -95,6 +95,57 @@ async function main() {
     });
   }
 
+  // One scorecard template per organization. Editing it through the API is a
+  // deliberate omission — versioning questions that scorecards have already
+  // been answered against is a real problem and not one this brief asks about.
+  const scorecardTemplate = await prisma.scorecardTemplate.upsert({
+    where: { orgId_name: { orgId: org.id, name: "Engineering Interview" } },
+    update: {},
+    create: {
+      orgId: org.id,
+      name: "Engineering Interview",
+      description:
+        "Four dimensions, rated 1-5. Weighted so the two that predict on-the-job performance count double.",
+    },
+  });
+
+  const criteria = [
+    {
+      position: 1,
+      label: "Technical depth",
+      description: "Understands the tools they claim, and where they break.",
+      weight: 2,
+    },
+    {
+      position: 2,
+      label: "Problem solving",
+      description: "Decomposes an unfamiliar problem without being led to the answer.",
+      weight: 2,
+    },
+    {
+      position: 3,
+      label: "Communication",
+      description: "Explains a decision to someone who was not in the room.",
+      weight: 1,
+    },
+    {
+      position: 4,
+      label: "Collaboration",
+      description: "Takes a challenge to their design as information rather than threat.",
+      weight: 1,
+    },
+  ];
+
+  for (const criterion of criteria) {
+    await prisma.scorecardCriterion.upsert({
+      where: {
+        templateId_position: { templateId: scorecardTemplate.id, position: criterion.position },
+      },
+      update: {},
+      create: { templateId: scorecardTemplate.id, maxRating: 5, ...criterion },
+    });
+  }
+
   console.log(`\nSeeded ${org.name} with ${people.length} users.`);
   for (const person of people) {
     console.log(`  ${person.email.padEnd(24)} ${person.role.toLowerCase()}`);
@@ -102,6 +153,7 @@ async function main() {
   console.log(`  password for all: ${DEMO_PASSWORD}`);
   console.log(`\nPipeline template "${template.name}" (${stages.length} stages):`);
   console.log(`  ${stages.map((s) => s.name).join(" → ")}\n`);
+  console.log(`Scorecard template "${scorecardTemplate.name}": ${criteria.map((c) => c.label).join(", ")}\n`);
 }
 
 main()

@@ -33,6 +33,10 @@ model Organization {
   applications Application[]
   templates PipelineTemplate[]
 
+  interviews         Interview[]
+  scorecardTemplates ScorecardTemplate[]
+  scorecards         Scorecard[]
+
   @@map("organizations")
 }
 
@@ -56,6 +60,10 @@ model User {
   assignments   JobAssignment[]
 
   /// Unique per organization, not globally — the same person could work at two.
+  interviewsCreated Interview[]         @relation("InterviewCreatedBy")
+  panelSeats        InterviewPanelist[]
+  scorecards        Scorecard[]         @relation("ScorecardInterviewer")
+
   @@unique([orgId, email])
   @@index([orgId, role])
   @@map("users")
@@ -179,6 +187,8 @@ model JobStage {
   applications Application[]
   eventsFrom   ApplicationEvent[] @relation("EventFromStage")
   eventsTo     ApplicationEvent[] @relation("EventToStage")
+
+  interviews Interview[]
 
   @@unique([jobId, position])
   @@index([jobId, type])
@@ -365,6 +375,9 @@ model Application {
   // index added in a raw migration: Prisma cannot express WHERE on a unique
   // index, and a plain one would also block re-applying after a rejection,
   // which is a policy decision rather than a database invariant.
+  interviews Interview[]
+  scorecards Scorecard[]
+
   @@index([orgId, jobId, status])
   @@index([candidateId])
   @@map("applications")
@@ -419,6 +432,10 @@ enum ApplicationEventType {
   RESUME_PARSED
   RESUME_PARSE_FAILED
   MARKED_STAGNANT
+  INTERVIEW_SCHEDULED
+  INTERVIEW_CANCELLED
+  INTERVIEW_CONCLUDED
+  SCORECARD_SUBMITTED
 
   @@map("application_event_types")
 }
@@ -502,4 +519,182 @@ model OutboxEvent {
 
   @@index([status, availableAt])
   @@map("outbox_events")
+}
+
+enum InterviewStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+
+  @@map("interview_statuses")
+}
+
+enum Recommendation {
+  STRONG_NO
+  NO
+  YES
+  STRONG_YES
+
+  @@map("recommendations")
+}
+
+/// A scheduled conversation between a panel and a candidate, at one stage.
+///
+/// Scheduling itself is delegated to Cal.com: it owns availability, the invite
+/// and the video link, all of which are a calendar product's job and none of
+/// which this assignment would do better. What lives here is the part an ATS
+/// cannot delegate — which stage the interview belongs to, who owes feedback,
+/// and the audit trail. Every interview is a video call, so there is no mode.
+model Interview {
+  id            String @id @default(uuid()) @db.Uuid
+  orgId         String @map("org_id") @db.Uuid
+  applicationId String @map("application_id") @db.Uuid
+  /// The stage this interview scores. Scorecard gating is per stage, so an
+  /// interview that is not attached to one cannot gate anything.
+  stageId       String @map("stage_id") @db.Uuid
+
+  title          String
+  scheduledStart DateTime        @map("scheduled_start")
+  scheduledEnd   DateTime        @map("scheduled_end")
+  timezone       String          @default("Asia/Kolkata")
+  status         InterviewStatus @default(SCHEDULED)
+
+  /// The Cal.com booking, and the meeting link it generated.
+  ///
+  /// A reference, not a source of truth. Nothing here polls Cal.com or receives
+  /// its webhooks, so an interview rescheduled inside Cal.com will not sync
+  /// back — a known limitation, and the first thing a real integration fixes.
+  bookingUrl String? @map("booking_url")
+  meetingUrl String? @map("meeting_url")
+
+  notes            String?
+  cancellationNote String? @map("cancellation_note")
+
+  createdById String   @map("created_by_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  application Application  @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  stage       JobStage     @relation(fields: [stageId], references: [id])
+  createdBy   User         @relation("InterviewCreatedBy", fields: [createdById], references: [id])
+
+  panelists  InterviewPanelist[]
+  scorecards Scorecard[]
+
+  @@index([orgId, status, scheduledStart])
+  @@index([applicationId])
+  @@index([stageId])
+  @@map("interviews")
+}
+
+/// Who is on the panel, and who owes a scorecard.
+///
+/// `isRequired` is the whole reason this is a table rather than an array of user
+/// ids: a backup interviewer should be invited without their silence blocking
+/// the candidate's progress.
+model InterviewPanelist {
+  id          String  @id @default(uuid()) @db.Uuid
+  interviewId String  @map("interview_id") @db.Uuid
+  userId      String  @map("user_id") @db.Uuid
+  isRequired  Boolean @default(true) @map("is_required")
+
+  interview Interview @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([interviewId, userId])
+  @@index([userId])
+  @@map("interview_panelists")
+}
+
+/// The question set a scorecard answers.
+///
+/// Templated rather than free text because "structured feedback" is the point:
+/// comparing candidates needs everyone answering the same questions, and a
+/// notes field cannot be compared across a panel.
+model ScorecardTemplate {
+  id          String   @id @default(uuid()) @db.Uuid
+  orgId       String   @map("org_id") @db.Uuid
+  name        String
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  org        Organization         @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  criteria   ScorecardCriterion[]
+  scorecards Scorecard[]
+
+  @@unique([orgId, name])
+  @@map("scorecard_templates")
+}
+
+model ScorecardCriterion {
+  id          String  @id @default(uuid()) @db.Uuid
+  templateId  String  @map("template_id") @db.Uuid
+  label       String
+  description String?
+  position    Int
+  /// Relative weight when collapsing a scorecard into one number.
+  weight      Float   @default(1)
+  maxRating   Int     @default(5) @map("max_rating")
+
+  template ScorecardTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  ratings  ScorecardRating[]
+
+  @@unique([templateId, position])
+  @@map("scorecard_criteria")
+}
+
+/// One interviewer's verdict on one interview.
+model Scorecard {
+  id            String @id @default(uuid()) @db.Uuid
+  orgId         String @map("org_id") @db.Uuid
+  interviewId   String @map("interview_id") @db.Uuid
+  applicationId String @map("application_id") @db.Uuid
+  interviewerId String @map("interviewer_id") @db.Uuid
+  templateId    String @map("template_id") @db.Uuid
+
+  /// Null while a draft — and the reason the row exists before it is finished.
+  ///
+  /// An interviewer may not read a colleague's scorecard until their own is
+  /// submitted, so "started" and "committed" have to be distinguishable. A
+  /// nullable timestamp does that with one column; an absent row could not.
+  submittedAt    DateTime?       @map("submitted_at")
+  recommendation Recommendation?
+  summary        String?
+  /// Weighted average of the ratings, normalized 0-1. Denormalized so a panel
+  /// summary does not have to re-read every rating row.
+  score          Float?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  org         Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  interview   Interview         @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  application Application       @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  interviewer User              @relation("ScorecardInterviewer", fields: [interviewerId], references: [id], onDelete: Cascade)
+  template    ScorecardTemplate @relation(fields: [templateId], references: [id])
+
+  ratings ScorecardRating[]
+
+  /// One scorecard per interviewer per interview. Their verdict is a single
+  /// thing they revise, not a series of submissions.
+  @@unique([interviewId, interviewerId])
+  @@index([applicationId])
+  @@map("scorecards")
+}
+
+model ScorecardRating {
+  id          String  @id @default(uuid()) @db.Uuid
+  scorecardId String  @map("scorecard_id") @db.Uuid
+  criterionId String  @map("criterion_id") @db.Uuid
+  rating      Int
+  notes       String?
+
+  scorecard Scorecard          @relation(fields: [scorecardId], references: [id], onDelete: Cascade)
+  criterion ScorecardCriterion @relation(fields: [criterionId], references: [id], onDelete: Cascade)
+
+  @@unique([scorecardId, criterionId])
+  @@map("scorecard_ratings")
 }
