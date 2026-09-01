@@ -5,6 +5,7 @@ import { AppService } from './app.service';
 import { AppConfigModule } from './config/config.module';
 import { PrismaModule } from './modules/prisma/prisma.module';
 import { QueueModule } from './modules/queue/queue.module';
+import { ProcessorsModule } from './processors/processors.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { ParsingModule } from './modules/parsing/parsing.module';
 import { IdempotencyModule } from './modules/idempotency/idempotency.module';
@@ -38,6 +39,7 @@ import { UsersModule } from './modules/users/users.module';
     AnalyticsModule,
     NotificationsModule,
     OutboxModule,
+    ProcessorsModule,
   ],
   controllers: [AppController, HealthController],
   providers: [

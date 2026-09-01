@@ -16,6 +16,13 @@ export const envSchema = z.object({
     .default('development'),
 
   DATABASE_URL: z.string().url(),
+  REDIS_URL: z.string().url(),
+  /** Where uploaded documents live. Relative to the repo root. */
+  STORAGE_ROOT: z.string().default('./storage'),
+
+  OUTBOX_POLL_INTERVAL_MS: z.coerce.number().int().positive().default(1000),
+  OUTBOX_BATCH_SIZE: z.coerce.number().int().positive().default(50),
+  JOB_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
 
   JWT_SECRET: z.string().min(16),
   JWT_REFRESH_SECRET: z.string().min(16),

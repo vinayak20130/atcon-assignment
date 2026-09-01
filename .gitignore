@@ -33,3 +33,6 @@ Thumbs.db
 
 # Test files
 *.test.ts
+
+# Uploaded documents
+storage/

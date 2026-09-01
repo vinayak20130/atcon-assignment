@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import {
   ConflictException,
   Injectable,
@@ -9,6 +8,8 @@ import {
 import type { ApplicationSubmitInput, ApplicationSubmitResponse } from '@atcon/shared';
 import { Prisma } from '@atcon/db';
 import { PrismaService } from '../prisma/prisma.service';
+import { OutboxService } from '../outbox/outbox.service';
+import { StorageService } from '../storage/storage.service';
 import { CandidateIdentityService } from '../candidates/candidate-identity.service';
 
 export interface ResumeUpload {
@@ -34,6 +35,8 @@ export class ApplicationIntakeService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly identity: CandidateIdentityService,
+    private readonly storage: StorageService,
+    private readonly outbox: OutboxService,
   ) {}
 
   async submit(input: {
@@ -64,7 +67,17 @@ export class ApplicationIntakeService {
       throw new UnprocessableEntityException('This posting is not currently accepting applications.');
     }
 
-    const sha256 = createHash('sha256').update(input.resume.buffer).digest('hex');
+    // Written to storage BEFORE the transaction opens. Storage is not
+    // transactional, so doing it inside would mean either holding a database
+    // transaction open across a write, or discovering the write failed after
+    // committing a row that references it. An orphaned file costs nothing and
+    // is swept on the failure path; an application row pointing at a file that
+    // does not exist is a lost candidate.
+    const stored = await this.storage.put({
+      orgId: job.orgId,
+      buffer: input.resume.buffer,
+      filename: input.resume.filename,
+    });
 
     try {
       const result = await this.prisma.$transaction(async (tx) => {
@@ -110,7 +123,7 @@ export class ApplicationIntakeService {
           },
         });
 
-        await tx.document.create({
+        const document = await tx.document.create({
           data: {
             orgId: job.orgId,
             candidateId: candidate.candidateId,
@@ -120,11 +133,27 @@ export class ApplicationIntakeService {
             // upload happens BEFORE this transaction opens — object storage is
             // not transactional, and an application row pointing at a file that
             // does not exist is a lost candidate.
-            storageKey: `pending/${sha256}`,
+            storageKey: stored.storageKey,
             filename: input.resume.filename,
             mimeType: input.resume.mimeType,
-            sizeBytes: input.resume.buffer.byteLength,
-            sha256,
+            sizeBytes: stored.sizeBytes,
+            sha256: stored.sha256,
+          },
+          select: { id: true },
+        });
+
+        // The side effect, committed with the state change that caused it.
+        // Nothing is enqueued here — the intent is committed, and the relay
+        // picks it up.
+        await this.outbox.write(tx, {
+          orgId: job.orgId,
+          aggregateType: 'document',
+          aggregateId: document.id,
+          eventType: 'resume.parse.requested',
+          payload: {
+            documentId: document.id,
+            applicationId: application.id,
+            candidateId: candidate.candidateId,
           },
         });
 
@@ -142,6 +171,9 @@ export class ApplicationIntakeService {
         message: 'Your application has been received.',
       };
     } catch (error) {
+      // The transaction rolled back, so the file we wrote references nothing.
+      // Clean it up on the way out rather than leaving litter.
+      await this.storage.delete(stored.storageKey).catch(() => undefined);
       throw this.translate(error);
     }
   }

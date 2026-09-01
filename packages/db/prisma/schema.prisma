@@ -462,3 +462,44 @@ model ApplicationEvent {
   @@index([applicationId, occurredAt])
   @@map("application_events")
 }
+
+enum OutboxStatus {
+  PENDING
+  DISPATCHED
+  FAILED
+
+  @@map("outbox_statuses")
+}
+
+/// Transactional outbox.
+///
+/// Side effects are written in the SAME transaction as the state change that
+/// caused them, then relayed to the queue by a poller.
+///
+/// The two alternatives both lose work. Enqueuing inside the transaction leaves
+/// a job pointing at a row a rollback removed. Enqueuing after the commit loses
+/// the job entirely if the process dies in the gap — silently, with nothing
+/// logged and nothing to retry.
+///
+/// That trades exactly-once for at-least-once, which is only safe because every
+/// handler keys off `id` and is idempotent.
+model OutboxEvent {
+  id            String       @id @default(uuid()) @db.Uuid
+  orgId         String       @map("org_id") @db.Uuid
+  aggregateType String       @map("aggregate_type")
+  aggregateId   String       @map("aggregate_id") @db.Uuid
+  eventType     String       @map("event_type")
+  payload       Json
+  status        OutboxStatus @default(PENDING)
+
+  attempts     Int       @default(0)
+  /// Lets a failed relay back off without blocking the rest of the batch, and
+  /// doubles as the lease: a claimed row is pushed into the future.
+  availableAt  DateTime  @default(now()) @map("available_at")
+  dispatchedAt DateTime? @map("dispatched_at")
+  lastError    String?   @map("last_error")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  @@index([status, availableAt])
+  @@map("outbox_events")
+}
