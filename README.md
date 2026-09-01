@@ -30,23 +30,105 @@ The platform uses a decoupled, full-stack monorepo architecture leveraging `pnpm
 - **Queueing Heavy Tasks**: File uploads (S3/local storage) and PDF parsing (`pdf-parse`) are offloaded to background workers via BullMQ, keeping HTTP requests fast and non-blocking.
 - **Denormalization for Reads**: While the audit trail is event-sourced, heavy queries (like fetching active applications) hit denormalized views (e.g., `Application.currentStageId` and `Candidate.skills` array) to avoid expensive joins.
 
-## 2. Assumptions & Tradeoffs
+## 2. Assumptions Made
 
-### Assumptions
-- **Single-Tenant Operation**: Although an `Organization` concept is modeled in the schema (and every table has `orgId`), the actual deployment assumes a single-tenant environment for now. Multi-tenancy isolation (e.g., via PostgreSQL Row-Level Security) is omitted to keep the implementation straightforward.
-- **Interview Scheduling**: Interview scheduling currently depends heavily on Cal.com integrations (implied by `bookingUrl` references). We assume Cal.com owns availability and meeting links. The ATS just records the intention.
-- **Local Storage for Attachments**: S3 is configured via `@aws-sdk/client-s3`, but `STORAGE_ROOT` defaults to local disk for development convenience.
+Here are the main assumptions I made after reading the expected capabilities. The goal was to keep the implementation practical for the assignment while still designing it in a way that could grow into a production system.
 
-### Limitations & Tradeoffs
-- **Polling vs. CDC**: The outbox pattern uses a polling mechanism rather than Change Data Capture (CDC, like Debezium). This is a tradeoff favoring operational simplicity over microsecond latency. A 1-second polling tick is fine for a hiring pipeline but avoids the operational complexity of managing replication slots.
-- **Resume Parsing**: Used `pdf-parse` for simple text extraction. Real semantic parsing of resumes (experience, education) would require an LLM or specialized third-party service (like Affinda or AWS Textract).
-- **Idempotency**: The `IdempotencyInterceptor` is currently scaffolded. Network retries on non-idempotent endpoints (like POST transitions) could lead to double actions if not fully implemented.
+In a production environment I would probably use ReBAC for access control, because recruiter access usually depends on the team, role, hiring panel, geography, and ownership of a requisition. For this case study I kept it simpler: static roles such as `RECRUITER` and `INTERVIEWER`, plus requisition-level assignment checks.
 
-### Future Improvements
-1. **Webhook Integrations**: Syncing interview status back from Cal.com via webhooks instead of treating the ATS record as static.
-2. **Advanced Resume Parsing**: Replace `pdf-parse` with an LLM integration for structured JSON output (skills, years of experience, structured timeline).
-3. **Real-time Updates**: Implement WebSocket gateways for the dashboard to reflect real-time candidate pipeline movements without refreshing.
-4. **Analytics Aggregation**: Build a materialized view for time-to-hire and pipeline conversion metrics, as running complex aggregations over the event log directly will slow down as data grows.
+For resume parsing and notifications, a production system would usually depend on an external API vendor, a document processing service, or a separate consumer group. For this assignment I used background workers and queues. The API accepts the request, stores the important state, and lets workers handle resume parsing and notification delivery asynchronously.
+
+For duplicate candidate detection, I used deterministic identity keys based on normalized email and phone number. This is simple, explainable, and safe. A stronger production system could also compare resume-derived signals such as past company names, education, LinkedIn URL, and work history. I did not auto-reject candidates based on fuzzy matching because that can easily reject a real candidate incorrectly. Instead, deterministic matches are handled automatically and fuzzy matches would be better surfaced as a recruiter review queue.
+
+### Requirement: Publish Job Openings and Receive Applications
+
+**Questions that came up**
+
+- Which role is allowed to create and publish job openings?
+- Should all recruiters see all applications, or only applications for jobs they own?
+- How should spam or bot submissions be handled?
+
+**Assumptions made**
+
+- Recruiters can create and manage job requisitions.
+- A recruiter only sees jobs and applications for requisitions they are assigned to.
+- Public job pages are read-only and expose only candidate-safe fields.
+- The application form includes a honeypot field for basic bot protection.
+- More advanced spam handling such as rate limits, captcha, IP reputation, and abuse scoring would be added later.
+
+### Requirement: Parse and Store Candidate Profiles and Resumes
+
+**Questions that came up**
+
+- Should resume parsing happen during the form submission or in the background?
+- What happens if parsing fails?
+- Where should uploaded files be stored?
+
+**Assumptions made**
+
+- Resume upload should not block application submission for too long.
+- The API stores the application and document first, then queues resume parsing.
+- If parsing fails, the candidate application still exists and the document is marked with a failed/partial parse state.
+- Local file storage is enough for development. In production this would move to S3 or another object store.
+- The parser extracts useful profile fields such as name, email, skills, LinkedIn URL, and experience signals where possible.
+
+### Requirement: Move Candidates Through Configurable Hiring Stages
+
+**Questions that came up**
+
+- Who can configure hiring stages?
+- Can stages be edited after candidates are already inside the pipeline?
+- Which role can move candidates through stages?
+- Should backward moves and rejections require a reason?
+
+**Assumptions made**
+
+- Recruiters can create requisitions from a pipeline template.
+- Stages are copied onto the requisition when it is created. This means editing a template later does not unexpectedly change an active hiring pipeline.
+- Recruiters can move candidates through stages.
+- Interviewers can submit scorecards, but they cannot move candidates.
+- Rejections, reopenings, and backward moves require a reason so the audit trail is meaningful.
+- Candidate movement is handled by a state machine so rules are explicit and testable.
+
+### Requirement: Schedule Interviews and Record Structured Scorecards
+
+**Questions that came up**
+
+- Who can schedule interviews?
+- Should candidates choose their own slots through Cal.com?
+- Do backup interviewers need to exist?
+- Does every interview stage require a scorecard?
+
+**Assumptions made**
+
+- Recruiters schedule interviews.
+- Cal.com can own availability, booking, and meeting links. The ATS stores the interview record and links it to the candidate, job, and stage.
+- Each interview has panelists, and some panelists can be marked as required.
+- Backup or optional interviewers can be added without blocking the candidate from moving forward.
+- Required scorecards can gate final hiring decisions, while the offer stage can still be used by recruiters to shortlist a candidate after interview.
+
+### Requirement: Track Time-to-Hire and Pipeline Health
+
+**Questions that came up**
+
+- Does time-to-hire start when the job is opened or when the candidate applies?
+- What does pipeline health mean in a small ATS?
+- Should pipeline health be one score or a set of explainable metrics?
+
+**Assumptions made**
+
+- Time-to-fill starts when a requisition opens and ends when the role is filled.
+- Time-to-hire starts when a candidate applies and ends when they are hired.
+- Pipeline health should be explainable, not a single black-box score.
+- The dashboard tracks stage reach, conversion to the next stage, median time in stage, active/hired/rejected counts, and simple alerts for slow or low-conversion stages.
+- For larger scale, I would move these analytics to materialized views or scheduled aggregates instead of calculating everything directly from events on every request.
+
+### Limitations and Improvements
+
+- Idempotency is scaffolded but not fully implemented. I would either remove the placeholder or add a real `Idempotency-Key` store for create-style endpoints.
+- Resume parsing is lightweight and deterministic. A production version could use an LLM or a resume parsing vendor for structured work history and education extraction.
+- Interview scheduling is recorded in the ATS, but calendar availability is assumed to live in Cal.com.
+- The UI is intentionally lightweight. With more time I would add richer interview forms, scorecard screens, job-scoped analytics filters, and real-time board updates.
 
 ## 3. Demonstration
 
