@@ -3,17 +3,11 @@ import { Reflector } from '@nestjs/core';
 import type { AuthenticatedUser, UserRole } from '@atcon/shared';
 import { ROLES_KEY } from '../../../common/decorators/roles.decorator';
 
-/**
- * Coarse role check.
- *
- * Answers "may a recruiter do this kind of thing at all?" — never "may this
- * recruiter touch THIS requisition?", which is per-resource scoping and belongs
- * in the services. Keeping the two apart is what stops the role list growing
- * one entry per requisition.
- *
- * A route with no @Roles() passes: authentication is already enforced globally,
- * and most endpoints are open to any authenticated user.
- */
+// Answers "can a recruiter do this kind of thing", never "can this recruiter
+// touch THIS requisition" — that's JobScopeService. Keeping them apart is what
+// stops the role list growing an entry per requisition.
+//
+// A route with no @Roles() passes; auth is already enforced globally.
 @Injectable()
 export class RolesGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}

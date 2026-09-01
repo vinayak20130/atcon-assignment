@@ -4,12 +4,8 @@ import type { Request } from 'express';
 import { IS_PUBLIC_KEY } from '../../../common/decorators/public.decorator';
 import { AuthService } from '../auth.service';
 
-/**
- * Global authentication. Routes opt out with `@Public()`.
- *
- * Deny-by-default is the important property: a new endpoint added without any
- * decorator is protected, not exposed.
- */
+// Deny by default: an endpoint added without any decorator is protected, not
+// exposed. Opt out with @Public().
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
   constructor(

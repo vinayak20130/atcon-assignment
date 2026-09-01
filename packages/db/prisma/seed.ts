@@ -1,6 +1,6 @@
 import path from "node:path";
 import { config as loadEnv } from "dotenv";
-import { PrismaClient, UserRole } from "@prisma/client";
+import { PrismaClient, StageType, UserRole } from "@prisma/client";
 import { hashPassword } from "@atcon/shared/server";
 
 // The seed runs as a standalone script, so it loads the repo-root .env itself
@@ -55,11 +55,53 @@ async function main() {
     });
   }
 
+  // One template to create requisitions from. Its stages are a blueprint —
+  // creating a requisition COPIES them, so editing this later never reshapes a
+  // pipeline candidates are already sitting in.
+  const template = await prisma.pipelineTemplate.upsert({
+    where: { orgId_name: { orgId: org.id, name: "Engineering — Standard" } },
+    update: {},
+    create: {
+      orgId: org.id,
+      name: "Engineering — Standard",
+      description: "Default pipeline for engineering requisitions.",
+      isDefault: true,
+    },
+  });
+
+  const stages = [
+    { position: 1, name: "Applied", type: StageType.APPLIED },
+    { position: 2, name: "Screen", type: StageType.SCREEN, slaDays: 3 },
+    {
+      position: 3,
+      name: "Technical Interview",
+      type: StageType.INTERVIEW,
+      requiresScorecard: true,
+      slaDays: 5,
+    },
+    { position: 4, name: "Offer", type: StageType.OFFER, slaDays: 5 },
+    { position: 5, name: "Hired", type: StageType.HIRED },
+    // Terminal, reachable from any stage rather than sequentially.
+    { position: 6, name: "Rejected", type: StageType.REJECTED },
+  ];
+
+  for (const stage of stages) {
+    await prisma.pipelineTemplateStage.upsert({
+      where: {
+        templateId_position: { templateId: template.id, position: stage.position },
+      },
+      update: {},
+      create: { templateId: template.id, ...stage },
+    });
+  }
+
   console.log(`\nSeeded ${org.name} with ${people.length} users.`);
   for (const person of people) {
     console.log(`  ${person.email.padEnd(24)} ${person.role.toLowerCase()}`);
   }
-  console.log(`  password for all: ${DEMO_PASSWORD}\n`);
+  console.log(`  password for all: ${DEMO_PASSWORD}`);
+  console.log(`\nPipeline template "${template.name}" (${stages.length} stages):`);
+  console.log(`  ${stages.map((s) => s.name).join(" → ")}\n`);
 }
 
 main()

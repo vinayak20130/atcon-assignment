@@ -1,13 +1,8 @@
 import { Injectable, type OnModuleDestroy, type OnModuleInit } from '@nestjs/common';
 import { PrismaClient } from '@atcon/db';
 
-/**
- * The Prisma client, with its lifecycle tied to Nest's.
- *
- * Extends the generated client rather than wrapping it: the domain rules that
- * matter live in @atcon/shared as pure functions, and a repository layer here
- * would add indirection without a boundary worth defending.
- */
+// Extends the client rather than wrapping it. A repository layer here would be
+// indirection without a boundary — the domain rules live in @atcon/shared.
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   async onModuleInit(): Promise<void> {

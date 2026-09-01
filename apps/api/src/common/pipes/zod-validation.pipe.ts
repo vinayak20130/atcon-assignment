@@ -1,12 +1,8 @@
 import { Injectable, type PipeTransform, UnprocessableEntityException } from '@nestjs/common';
 import type { ZodSchema } from 'zod';
 
-/**
- * Validates and normalizes a payload against a Zod schema.
- *
- * Returns the PARSED value rather than the input, so schema transforms — the
- * trim and lowercase on an email, for instance — actually reach the handler.
- */
+// Returns the parsed value, not the input, so schema transforms like the trim
+// and lowercase on an email actually reach the handler.
 @Injectable()
 export class ZodValidationPipe implements PipeTransform {
   constructor(private readonly schema: ZodSchema) {}

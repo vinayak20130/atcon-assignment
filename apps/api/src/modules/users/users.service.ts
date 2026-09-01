@@ -13,13 +13,9 @@ const SUMMARY = {
   createdAt: true,
 } as const;
 
-/**
- * Managing colleagues.
- *
- * Every query is scoped by the CALLER'S orgId, taken from their token. That is
- * the whole of multi-tenant isolation here, and the one place it would leak if
- * an orgId were ever read from a request body instead.
- */
+// Every query is scoped by the caller's orgId, taken from their token. That is
+// the whole of tenant isolation, and the one place it would leak if an orgId
+// were ever read from a request body.
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
@@ -54,13 +50,8 @@ export class UsersService {
     }
   }
 
-  /**
-   * Deactivate rather than delete.
-   *
-   * Users are actors in the audit trail — every stage change points at one.
-   * Deleting a recruiter would orphan the history of every decision they made,
-   * so access is revoked and the record stays.
-   */
+  // Deactivate, never delete. Users are actors in the audit trail, so removing
+  // one would orphan the history of every decision they made.
   async deactivate(id: string, actor: AuthenticatedUser): Promise<UserSummary> {
     if (id === actor.id) {
       throw new ConflictException('You cannot deactivate your own account.');

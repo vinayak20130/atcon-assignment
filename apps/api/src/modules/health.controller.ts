@@ -2,8 +2,8 @@ import { Controller, Get } from '@nestjs/common';
 import { Public } from '../common/decorators/public.decorator';
 import { PrismaService } from './prisma/prisma.service';
 
-// Public: an orchestrator's probe cannot authenticate, and a health check
-// that needs a token reports on the token rather than on the service.
+// An orchestrator's probe can't authenticate, and a health check that needs a
+// token reports on the token rather than the service.
 @Public()
 @Controller({ path: 'health', version: '1' })
 export class HealthController {

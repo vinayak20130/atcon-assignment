@@ -27,7 +27,9 @@ model Organization {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  users User[]
+  users     User[]
+  jobs      JobRequisition[]
+  templates PipelineTemplate[]
 
   @@map("organizations")
 }
@@ -45,8 +47,10 @@ model User {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  org           Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org           Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
   refreshTokens RefreshToken[]
+  createdJobs   JobRequisition[] @relation("JobCreatedBy")
+  assignments   JobAssignment[]
 
   /// Unique per organization, not globally — the same person could work at two.
   @@unique([orgId, email])
@@ -72,4 +76,162 @@ model RefreshToken {
 
   @@index([userId, expiresAt])
   @@map("refresh_tokens")
+}
+
+/// The semantic role of a stage, independent of its display name.
+///
+/// A stage called "Founder Chat" and one called "Final Round" can both be
+/// INTERVIEW. Metrics and guards key off this, never off the name, so renaming
+/// a stage cannot break analytics.
+enum StageType {
+  APPLIED
+  SCREEN
+  ASSESSMENT
+  INTERVIEW
+  OFFER
+  HIRED
+  REJECTED
+
+  @@map("stage_types")
+}
+
+enum JobStatus {
+  DRAFT
+  OPEN
+  PAUSED
+  CLOSED
+  FILLED
+
+  @@map("job_statuses")
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  INTERNSHIP
+
+  @@map("employment_types")
+}
+
+model JobRequisition {
+  id             String         @id @default(uuid()) @db.Uuid
+  orgId          String         @map("org_id") @db.Uuid
+  title          String
+  slug           String
+  description    String
+  department     String?
+  location       String?
+  employmentType EmploymentType @default(FULL_TIME) @map("employment_type")
+  isRemote       Boolean        @default(false) @map("is_remote")
+  openings       Int            @default(1)
+  status         JobStatus      @default(DRAFT)
+
+  createdById String @map("created_by_id") @db.Uuid
+
+  /// Start of the clock for time-to-fill. Set once, on first publish — reopening
+  /// a paused requisition must not restart it, because the role has been open
+  /// the whole time from the business's point of view.
+  openedAt  DateTime? @map("opened_at")
+  closedAt  DateTime? @map("closed_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  /// The blueprint this was created from. Kept so you can answer "where did
+  /// this pipeline come from", never used to look up stages — those live in
+  /// `stages` and belong to this requisition alone.
+  pipelineTemplateId String? @map("pipeline_template_id") @db.Uuid
+
+  org              Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdBy        User              @relation("JobCreatedBy", fields: [createdById], references: [id])
+  pipelineTemplate PipelineTemplate? @relation(fields: [pipelineTemplateId], references: [id], onDelete: SetNull)
+
+  stages      JobStage[]
+  assignments JobAssignment[]
+
+  @@unique([orgId, slug])
+  @@index([orgId, status])
+  @@map("job_requisitions")
+}
+
+/// The requisition's own frozen copy of its pipeline.
+///
+/// Applications point here, never at a reusable template. That is what stops a
+/// recruiter editing a template on Tuesday from reshaping the pipeline forty
+/// candidates are already sitting in, or retroactively changing what last
+/// quarter's conversion rates meant.
+model JobStage {
+  id                String    @id @default(uuid()) @db.Uuid
+  jobId             String    @map("job_id") @db.Uuid
+  name              String
+  position          Int
+  type              StageType
+  /// Advancing OUT of this stage requires every required scorecard submitted.
+  requiresScorecard Boolean   @default(false) @map("requires_scorecard")
+  /// Days in this stage before an application is flagged stagnant.
+  slaDays           Int?      @map("sla_days")
+
+  job JobRequisition @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, position])
+  @@index([jobId, type])
+  @@map("job_stages")
+}
+
+/// The one scoping dimension on top of static roles.
+///
+/// A recruiter may only act on requisitions they are assigned to. Pure RBAC
+/// would mean every recruiter reads every candidate's salary expectations,
+/// which is wrong for an ATS; full ReBAC is more machinery than this earns.
+/// Roles plus per-requisition assignment is the cheap 90%.
+model JobAssignment {
+  id        String   @id @default(uuid()) @db.Uuid
+  jobId     String   @map("job_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  isOwner   Boolean  @default(false) @map("is_owner")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  job  JobRequisition @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  user User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, userId])
+  @@index([userId])
+  @@map("job_assignments")
+}
+
+/// A reusable blueprint. Never referenced by an application.
+///
+/// Templates are org-level: "Engineering — Standard", "Design — Standard". A
+/// recruiter picks one when creating a requisition, and its stages are COPIED
+/// onto that requisition rather than referenced.
+model PipelineTemplate {
+  id          String   @id @default(uuid()) @db.Uuid
+  orgId       String   @map("org_id") @db.Uuid
+  name        String
+  description String?
+  isDefault   Boolean  @default(false) @map("is_default")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  org    Organization            @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  stages PipelineTemplateStage[]
+  jobs   JobRequisition[]
+
+  @@unique([orgId, name])
+  @@map("pipeline_templates")
+}
+
+model PipelineTemplateStage {
+  id                String    @id @default(uuid()) @db.Uuid
+  templateId        String    @map("template_id") @db.Uuid
+  name              String
+  position          Int
+  type              StageType
+  requiresScorecard Boolean   @default(false) @map("requires_scorecard")
+  slaDays           Int?      @map("sla_days")
+
+  template PipelineTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@unique([templateId, position])
+  @@map("pipeline_template_stages")
 }

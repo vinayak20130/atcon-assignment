@@ -7,25 +7,16 @@ import { APP_CONFIG } from '../../config/config.module';
 import type { Env } from '../../config/env';
 import { PrismaService } from '../prisma/prisma.service';
 
-/**
- * Authentication with rotating refresh tokens.
- *
- * Access tokens are short-lived and stateless. Refresh tokens are long-lived, so
- * they are stored — hashed — and rotated on every use. Presenting a token that
- * has already been rotated is the classic signal of theft, and is handled by
- * revoking the whole chain rather than refusing the single request.
- */
+// Refresh tokens are stored hashed and rotated on every use. Presenting one
+// that's already been rotated means it was probably stolen, so the whole chain
+// is revoked rather than just that request refused.
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
-  /**
-   * A real hash of a value nobody knows, computed once at startup.
-   *
-   * Login verifies against this when the account does not exist, so a missing
-   * account and a wrong password cost the same time. Without it the endpoint is
-   * an account-enumeration oracle answerable with a stopwatch.
-   */
+  // Login verifies against this when the account doesn't exist, so a missing
+  // account and a wrong password take the same time. Skip it and the endpoint
+  // tells you who has an account, with a stopwatch.
   private readonly absentUserHash = hashPassword(randomBytes(32).toString('hex'));
 
   constructor(
@@ -58,8 +49,8 @@ export class AuthService {
     }
 
     if (stored.revokedAt) {
-      // Reuse of a rotated token: assume theft and cut the whole family,
-      // forcing a fresh login on every device.
+      // Reuse of a rotated token. Assume theft and cut the whole family, which
+      // forces a fresh login on every device.
       this.logger.warn(`Refresh token reuse for user ${stored.userId} — revoking all sessions`);
       await this.prisma.refreshToken.updateMany({
         where: { userId: stored.userId, revokedAt: null },
@@ -85,7 +76,7 @@ export class AuthService {
     });
   }
 
-  /** Verifies an access token and returns the CURRENT user, not the token's copy. */
+  // Returns the current user, not the token's copy of them.
   async verifyAccessToken(token: string): Promise<AuthenticatedUser> {
     let claims: AccessTokenClaims;
     try {
@@ -96,8 +87,8 @@ export class AuthService {
       throw new UnauthorizedException('Access token is invalid or expired.');
     }
 
-    // Re-read rather than trusting the token's role: a demotion or deactivation
-    // must take effect within the token TTL, not whenever the user next logs in.
+    // Re-read rather than trust the token's role, so a demotion or deactivation
+    // lands within the token TTL instead of at next login.
     const user = await this.prisma.user.findUnique({ where: { id: claims.sub } });
     if (!user || !user.isActive) {
       throw new UnauthorizedException('This account is no longer active.');
@@ -118,9 +109,8 @@ export class AuthService {
       expiresIn: this.config.JWT_ACCESS_TTL,
     });
 
-    // Refresh tokens are opaque random strings, not JWTs: they are checked
-    // against the database on every use anyway, so signing them would add
-    // nothing but a second place for a secret to leak from.
+    // Opaque random strings, not JWTs — they hit the database on every use
+    // anyway, so signing them would just add another secret to leak.
     const refreshToken = randomBytes(48).toString('base64url');
 
     await this.prisma.refreshToken.create({
