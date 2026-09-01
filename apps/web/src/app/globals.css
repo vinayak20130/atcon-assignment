@@ -172,6 +172,13 @@ select {
   margin-bottom: 22px;
 }
 
+.head-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
 .eyebrow {
   font-family: var(--font-mono);
   font-size: 0.6875rem;
@@ -303,7 +310,8 @@ select {
   display: block;
   margin-bottom: 14px;
 }
-.field label {
+.field label,
+.field > span {
   display: block;
   font-size: 0.8125rem;
   font-weight: 500;
@@ -326,6 +334,59 @@ select {
 .field textarea {
   min-height: 90px;
   resize: vertical;
+}
+
+.form-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  gap: 14px;
+  align-items: start;
+}
+.form-main,
+.form-side {
+  min-width: 0;
+}
+.split-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.check-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+.check-row input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+.template-preview {
+  border-top: 1px solid var(--rule);
+  margin-top: 4px;
+  padding-top: 12px;
+}
+.template-preview ol {
+  display: grid;
+  gap: 7px;
+  margin: 12px 0 0;
+  padding-left: 22px;
+}
+.template-preview li {
+  padding-left: 4px;
+}
+.template-preview li span:first-child {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+.actions-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 18px;
 }
 
 /* Honeypot: hidden from people, left in the DOM for bots to fill. */
@@ -600,6 +661,15 @@ select {
 }
 
 @media (max-width: 720px) {
+  .head-row,
+  .actions-row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .form-shell,
+  .split-fields {
+    grid-template-columns: 1fr;
+  }
   .funnel-row {
     grid-template-columns: 110px 1fr;
   }

@@ -38,7 +38,12 @@ export default function JobsPage() {
     <>
       <div className="page-head">
         <div className="eyebrow">Requisitions</div>
-        <h1>Your pipelines</h1>
+        <div className="head-row">
+          <h1>Your pipelines</h1>
+          <Link href="/jobs/new" className="btn" data-variant="primary">
+            New requisition
+          </Link>
+        </div>
         <p className="lede">
           Only the requisitions you are assigned to. Access is scoped per requisition rather than
           granted org-wide.
