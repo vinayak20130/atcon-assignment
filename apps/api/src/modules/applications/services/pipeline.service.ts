@@ -15,7 +15,8 @@ import {
   evaluateTransition,
 } from '@atcon/shared';
 import { Prisma } from '@atcon/db';
-import { PrismaService } from '../prisma/prisma.service';
+import { OutboxService } from '../../outbox/services/outbox.service';
+import { PrismaService } from '../../prisma/services/prisma.service';
 
 export interface TransitionResult {
   applicationId: string;
@@ -40,7 +41,10 @@ export interface TransitionResult {
 export class PipelineService {
   private readonly logger = new Logger(PipelineService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly outbox: OutboxService,
+  ) {}
 
   async transition(
     applicationId: string,
@@ -166,6 +170,19 @@ export class PipelineService {
           } as Prisma.InputJsonValue,
         },
       });
+
+      // Only rejection notifies. Every other transition is internal movement
+      // the candidate has no reason to hear about, and an ATS that emails on
+      // each one trains people to ignore it.
+      if (decision.kind === 'REJECT') {
+        await this.outbox.write(tx, {
+          orgId: application.orgId,
+          aggregateType: 'application',
+          aggregateId: applicationId,
+          eventType: 'application.rejected',
+          payload: { applicationId },
+        });
+      }
 
       // Filling the final opening closes the requisition, which is what stops
       // the time-to-fill clock.

@@ -15,10 +15,10 @@ import {
   type ApplicationSubmitResponse,
   applicationSubmitSchema,
 } from '@atcon/shared';
-import { Public } from '../../common/decorators/public.decorator';
-import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
-import { ApplicationIntakeService } from './application-intake.service';
-import { validateResumeUpload } from '../storage/file-validation';
+import { Public } from '../../../common/decorators/public.decorator';
+import { ZodValidationPipe } from '../../../common/pipes/zod-validation.pipe';
+import { ApplicationIntakeService } from '../services/application-intake.service';
+import { validateResumeUpload } from '../../storage/file-validation';
 
 const MAX_RESUME_BYTES = 5 * 1024 * 1024;
 

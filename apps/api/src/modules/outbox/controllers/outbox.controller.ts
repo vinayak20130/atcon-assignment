@@ -2,11 +2,11 @@ import { Controller, Get, HttpCode, HttpStatus, Param, Post, Query, Unprocessabl
 import { InjectQueue } from '@nestjs/bullmq';
 import type { Queue } from 'bullmq';
 import { type AuthenticatedUser, UserRole } from '@atcon/shared';
-import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { Roles } from '../../common/decorators/roles.decorator';
-import { PrismaService } from '../prisma/prisma.service';
-import { QUEUE } from '../queue/jobs';
-import { OutboxRelayService } from './outbox-relay.service';
+import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { Roles } from '../../../common/decorators/roles.decorator';
+import { PrismaService } from '../../prisma/services/prisma.service';
+import { QUEUE } from '../../queue/jobs';
+import { OutboxRelayService } from '../services/outbox-relay.service';
 
 // Operational surface for the async pipeline.
 //

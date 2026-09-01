@@ -7,10 +7,10 @@ import {
   loginSchema,
   refreshSchema,
 } from '@atcon/shared';
-import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { Public } from '../../common/decorators/public.decorator';
-import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
-import { AuthService } from './auth.service';
+import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { Public } from '../../../common/decorators/public.decorator';
+import { ZodValidationPipe } from '../../../common/pipes/zod-validation.pipe';
+import { AuthService } from '../services/auth.service';
 
 @Controller({ path: 'auth', version: '1' })
 export class AuthController {

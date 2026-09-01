@@ -11,11 +11,11 @@ import {
   type ScheduleInterviewInput,
   UserRole,
 } from '@atcon/shared';
-import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { Roles } from '../../common/decorators/roles.decorator';
-import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
-import { InterviewsService } from './interviews.service';
-import { ScorecardsService } from './scorecards.service';
+import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { Roles } from '../../../common/decorators/roles.decorator';
+import { ZodValidationPipe } from '../../../common/pipes/zod-validation.pipe';
+import { InterviewsService } from '../services/interviews.service';
+import { ScorecardsService } from '../services/scorecards.service';
 
 /**
  * Both roles reach this controller, which is unusual here and deliberate.

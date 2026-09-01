@@ -2,7 +2,7 @@ import { ConflictException, Injectable, NotFoundException } from '@nestjs/common
 import type { AuthenticatedUser, UserCreateInput, UserSummary } from '@atcon/shared';
 import { Prisma } from '@atcon/db';
 import { hashPassword } from '@atcon/shared/server';
-import { PrismaService } from '../prisma/prisma.service';
+import { PrismaService } from '../../prisma/services/prisma.service';
 
 const SUMMARY = {
   id: true,

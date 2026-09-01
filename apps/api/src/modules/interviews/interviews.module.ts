@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
-import { JobScopeService } from '../auth/job-scope.service';
+import { JobScopeService } from '../auth/services/job-scope.service';
 import { PrismaModule } from '../prisma/prisma.module';
-import { ApplicationInterviewsController, InterviewsController } from './interviews.controller';
-import { InterviewsService } from './interviews.service';
-import { ScorecardsService } from './scorecards.service';
+import { ApplicationInterviewsController, InterviewsController } from './controllers/interviews.controller';
+import { InterviewsService } from './services/interviews.service';
+import { ScorecardsService } from './services/scorecards.service';
 
 @Module({
   imports: [PrismaModule],

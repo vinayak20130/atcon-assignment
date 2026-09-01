@@ -1,8 +1,8 @@
 import { Global, Module } from '@nestjs/common';
 import { QueueModule } from '../queue/queue.module';
-import { OutboxController } from './outbox.controller';
-import { OutboxRelayService } from './outbox-relay.service';
-import { OutboxService } from './outbox.service';
+import { OutboxController } from './controllers/outbox.controller';
+import { OutboxRelayService } from './services/outbox-relay.service';
+import { OutboxService } from './services/outbox.service';
 
 // Global: any module that changes state needs to record the side effects of
 // that change in the same transaction, so OutboxService must be injectable

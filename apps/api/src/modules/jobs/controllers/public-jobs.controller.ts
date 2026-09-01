@@ -1,8 +1,8 @@
 import { Controller, Get, NotFoundException, Param, Query } from '@nestjs/common';
 import { type PublicJobQuery, publicJobQuerySchema } from '@atcon/shared';
-import { Public } from '../../common/decorators/public.decorator';
-import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
-import { PrismaService } from '../prisma/prisma.service';
+import { Public } from '../../../common/decorators/public.decorator';
+import { ZodValidationPipe } from '../../../common/pipes/zod-validation.pipe';
+import { PrismaService } from '../../prisma/services/prisma.service';
 
 // The public careers page.
 //

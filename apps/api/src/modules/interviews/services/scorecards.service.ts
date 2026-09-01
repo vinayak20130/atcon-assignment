@@ -18,8 +18,8 @@ import {
   validateRatings,
   visibleScorecards,
 } from '@atcon/shared';
-import { appendApplicationEvent } from '../../common/application-events';
-import { PrismaService } from '../prisma/prisma.service';
+import { appendApplicationEvent } from '../../../common/application-events';
+import { PrismaService } from '../../prisma/services/prisma.service';
 import { InterviewsService } from './interviews.service';
 
 /**

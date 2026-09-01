@@ -1,12 +1,12 @@
 import { Body, Controller, ForbiddenException, Get, NotFoundException, Param, Post, Query } from '@nestjs/common';
 import { z } from 'zod';
 import { type AuthenticatedUser, UserRole } from '@atcon/shared';
-import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { Roles } from '../../common/decorators/roles.decorator';
-import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
-import { JobScopeService } from '../auth/job-scope.service';
-import { PrismaService } from '../prisma/prisma.service';
-import { PipelineService } from './pipeline.service';
+import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { Roles } from '../../../common/decorators/roles.decorator';
+import { ZodValidationPipe } from '../../../common/pipes/zod-validation.pipe';
+import { JobScopeService } from '../../auth/services/job-scope.service';
+import { PrismaService } from '../../prisma/services/prisma.service';
+import { PipelineService } from '../services/pipeline.service';
 
 const transitionSchema = z.object({
   // The caller's view of the current stage. Sending it is what turns a stale

@@ -2,7 +2,7 @@ import { type CanActivate, type ExecutionContext, Injectable, UnauthorizedExcept
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import { IS_PUBLIC_KEY } from '../../../common/decorators/public.decorator';
-import { AuthService } from '../auth.service';
+import { AuthService } from '../services/auth.service';
 
 /**
  * Global authentication. Routes opt out with `@Public()`.

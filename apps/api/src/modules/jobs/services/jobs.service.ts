@@ -11,7 +11,7 @@ import {
   type StageDefinitionInput,
   JobStatus,
 } from '@atcon/shared';
-import { PrismaService } from '../prisma/prisma.service';
+import { PrismaService } from '../../prisma/services/prisma.service';
 
 /**
  * Requisitions and their pipelines.

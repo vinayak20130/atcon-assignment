@@ -1,10 +1,11 @@
 import { Inject, Injectable, Logger, type OnModuleDestroy } from '@nestjs/common';
-import { InjectQueue } from '@nestjs/bullmq';
+import { getQueueToken } from '@nestjs/bullmq';
+import { ModuleRef } from '@nestjs/core';
 import type { Queue } from 'bullmq';
-import { APP_CONFIG } from '../../config/config.module';
-import type { Env } from '../../config/env';
-import { PrismaService } from '../prisma/prisma.service';
-import { QUEUE, type QueueName, queueForEvent } from '../queue/jobs';
+import { APP_CONFIG } from '../../../config/config.module';
+import type { Env } from '../../../config/env';
+import { PrismaService } from '../../prisma/services/prisma.service';
+import { type QueueName, queueForEvent } from '../../queue/jobs';
 
 interface LeasedEvent {
   id: string;
@@ -28,14 +29,15 @@ const LEASE_MS = 30_000;
 export class OutboxRelayService implements OnModuleDestroy {
   private readonly logger = new Logger(OutboxRelayService.name);
   private timer: NodeJS.Timeout | null = null;
+  /** Queue instances, resolved on first use. */
+  private readonly queues = new Map<QueueName, Queue>();
   private running = false;
   private stopped = false;
 
   constructor(
     private readonly prisma: PrismaService,
     @Inject(APP_CONFIG) private readonly config: Env,
-    @InjectQueue(QUEUE.RESUME_PARSE) private readonly resumeParse: Queue,
-    @InjectQueue(QUEUE.MAINTENANCE) private readonly maintenance: Queue,
+    private readonly moduleRef: ModuleRef,
   ) {}
 
   start(): void {
@@ -172,15 +174,28 @@ export class OutboxRelayService implements OnModuleDestroy {
     });
   }
 
+  /**
+   * Resolve a queue by name, rather than by a hand-maintained switch.
+   *
+   * The routing table is meant to be the single place a new event type is
+   * declared. It was not: every queue also had to be injected here and added to
+   * a switch, so a routed event with no matching case failed as "no queue
+   * registered" — the table said yes and the relay said no. Looking the queue
+   * up through the container removes the second list entirely.
+   */
   private queueFor(name: QueueName | null): Queue | null {
-    switch (name) {
-      case QUEUE.RESUME_PARSE:
-        return this.resumeParse;
-      case QUEUE.MAINTENANCE:
-        return this.maintenance;
-      default:
-        return null;
-    }
+    if (!name) return null;
+
+    const cached = this.queues.get(name);
+    if (cached) return cached;
+
+    // strict:false because the queue providers are registered in QueueModule,
+    // not this one.
+    const queue = this.moduleRef.get<Queue>(getQueueToken(name), { strict: false });
+    if (!queue) return null;
+
+    this.queues.set(name, queue);
+    return queue;
   }
 
   /** Return a FAILED event to the queue. Backs the DLQ replay endpoint. */

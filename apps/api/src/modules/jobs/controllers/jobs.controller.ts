@@ -9,12 +9,12 @@ import {
   jobStatusChangeSchema,
   stageDefinitionSchema,
 } from '@atcon/shared';
-import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { Roles } from '../../common/decorators/roles.decorator';
-import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
-import { JobScopeService } from '../auth/job-scope.service';
-import { PrismaService } from '../prisma/prisma.service';
-import { JobsService } from './jobs.service';
+import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { Roles } from '../../../common/decorators/roles.decorator';
+import { ZodValidationPipe } from '../../../common/pipes/zod-validation.pipe';
+import { JobScopeService } from '../../auth/services/job-scope.service';
+import { PrismaService } from '../../prisma/services/prisma.service';
+import { JobsService } from '../services/jobs.service';
 
 @Roles(UserRole.RECRUITER)
 @Controller({ path: 'jobs', version: '1' })

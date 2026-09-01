@@ -3,9 +3,9 @@ import { Inject, Injectable, Logger, UnauthorizedException } from '@nestjs/commo
 import { JwtService } from '@nestjs/jwt';
 import type { AccessTokenClaims, AuthenticatedUser, LoginResponse, UserRole } from '@atcon/shared';
 import { hashPassword, verifyPassword } from '@atcon/shared/server';
-import { APP_CONFIG } from '../../config/config.module';
-import type { Env } from '../../config/env';
-import { PrismaService } from '../prisma/prisma.service';
+import { APP_CONFIG } from '../../../config/config.module';
+import type { Env } from '../../../config/env';
+import { PrismaService } from '../../prisma/services/prisma.service';
 
 /**
  * Authentication with rotating refresh tokens.

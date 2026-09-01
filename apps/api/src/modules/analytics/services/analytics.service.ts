@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@atcon/db';
-import { PrismaService } from '../prisma/prisma.service';
+import { PrismaService } from '../../prisma/services/prisma.service';
 
 export interface FunnelStage {
   position: number;

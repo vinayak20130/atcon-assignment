@@ -5,10 +5,10 @@ import {
   UserRole,
   userCreateSchema,
 } from '@atcon/shared';
-import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { Roles } from '../../common/decorators/roles.decorator';
-import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe';
-import { UsersService } from './users.service';
+import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { Roles } from '../../../common/decorators/roles.decorator';
+import { ZodValidationPipe } from '../../../common/pipes/zod-validation.pipe';
+import { UsersService } from '../services/users.service';
 
 /**
  * Recruiter-only.

@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
-import { JobScopeService } from '../auth/job-scope.service';
-import { ApplicationIntakeService } from './application-intake.service';
-import { ApplicationsController } from './applications.controller';
-import { PipelineService } from './pipeline.service';
-import { PublicApplicationsController } from './public-applications.controller';
+import { JobScopeService } from '../auth/services/job-scope.service';
+import { ApplicationIntakeService } from './services/application-intake.service';
+import { ApplicationsController } from './controllers/applications.controller';
+import { PipelineService } from './services/pipeline.service';
+import { PublicApplicationsController } from './controllers/public-applications.controller';
 
 @Module({
   controllers: [PublicApplicationsController, ApplicationsController],

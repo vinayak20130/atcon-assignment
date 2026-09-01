@@ -1,9 +1,9 @@
 import { Controller, Get, NotFoundException, Query } from '@nestjs/common';
 import { type AuthenticatedUser, UserRole } from '@atcon/shared';
-import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { Roles } from '../../common/decorators/roles.decorator';
-import { JobScopeService } from '../auth/job-scope.service';
-import { AnalyticsService } from './analytics.service';
+import { CurrentUser } from '../../../common/decorators/current-user.decorator';
+import { Roles } from '../../../common/decorators/roles.decorator';
+import { JobScopeService } from '../../auth/services/job-scope.service';
+import { AnalyticsService } from '../services/analytics.service';
 
 @Roles(UserRole.RECRUITER)
 @Controller({ path: 'analytics', version: '1' })

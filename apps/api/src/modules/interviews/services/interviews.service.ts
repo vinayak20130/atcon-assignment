@@ -14,9 +14,10 @@ import {
   type ScheduleInterviewInput,
   UserRole,
 } from '@atcon/shared';
-import { appendApplicationEvent } from '../../common/application-events';
-import { JobScopeService } from '../auth/job-scope.service';
-import { PrismaService } from '../prisma/prisma.service';
+import { appendApplicationEvent } from '../../../common/application-events';
+import { JobScopeService } from '../../auth/services/job-scope.service';
+import { OutboxService } from '../../outbox/services/outbox.service';
+import { PrismaService } from '../../prisma/services/prisma.service';
 
 /**
  * Scheduling and concluding interviews.
@@ -33,6 +34,7 @@ export class InterviewsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly scope: JobScopeService,
+    private readonly outbox: OutboxService,
   ) {}
 
   async schedule(actor: AuthenticatedUser, applicationId: string, input: ScheduleInterviewInput) {
@@ -122,6 +124,14 @@ export class InterviewsService {
       await tx.application.update({
         where: { id: application.id },
         data: { lastActivityAt: new Date() },
+      });
+
+      await this.outbox.write(tx, {
+        orgId: application.orgId,
+        aggregateType: 'interview',
+        aggregateId: interview.id,
+        eventType: 'interview.scheduled',
+        payload: { applicationId: application.id, interviewId: interview.id },
       });
 
       this.logger.log(`Interview ${interview.id} scheduled on application ${application.id}`);

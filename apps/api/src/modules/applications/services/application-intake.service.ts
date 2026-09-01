@@ -7,10 +7,10 @@ import {
 } from '@nestjs/common';
 import type { ApplicationSubmitInput, ApplicationSubmitResponse } from '@atcon/shared';
 import { Prisma } from '@atcon/db';
-import { PrismaService } from '../prisma/prisma.service';
-import { OutboxService } from '../outbox/outbox.service';
-import { StorageService } from '../storage/storage.service';
-import { CandidateIdentityService } from '../candidates/candidate-identity.service';
+import { PrismaService } from '../../prisma/services/prisma.service';
+import { OutboxService } from '../../outbox/services/outbox.service';
+import { StorageService } from '../../storage/services/storage.service';
+import { CandidateIdentityService } from '../../candidates/services/candidate-identity.service';
 
 export interface ResumeUpload {
   buffer: Buffer;
@@ -155,6 +155,16 @@ export class ApplicationIntakeService {
             applicationId: application.id,
             candidateId: candidate.candidateId,
           },
+        });
+
+        // Committed with the application itself, so a rolled-back intake can
+        // never send a confirmation for an application that does not exist.
+        await this.outbox.write(tx, {
+          orgId: job.orgId,
+          aggregateType: 'application',
+          aggregateId: application.id,
+          eventType: 'application.received',
+          payload: { applicationId: application.id },
         });
 
         return { applicationId: application.id, candidateWasNew: candidate.isNew };

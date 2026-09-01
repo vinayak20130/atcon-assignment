@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { type AuthenticatedUser, UserRole } from '@atcon/shared';
-import { PrismaService } from '../prisma/prisma.service';
+import { PrismaService } from '../../prisma/services/prisma.service';
 
 /**
  * A filter guaranteed to select zero rows.
