@@ -50,7 +50,8 @@ model User {
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   org           Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  refreshTokens RefreshToken[]
+  refreshTokens     RefreshToken[]
+  applicationEvents ApplicationEvent[] @relation("EventActor")
   createdJobs   JobRequisition[] @relation("JobCreatedBy")
   assignments   JobAssignment[]
 
@@ -174,8 +175,10 @@ model JobStage {
   /// Days in this stage before an application is flagged stagnant.
   slaDays           Int?      @map("sla_days")
 
-  job          JobRequisition @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  job          JobRequisition     @relation(fields: [jobId], references: [id], onDelete: Cascade)
   applications Application[]
+  eventsFrom   ApplicationEvent[] @relation("EventFromStage")
+  eventsTo     ApplicationEvent[] @relation("EventToStage")
 
   @@unique([jobId, position])
   @@index([jobId, type])
@@ -356,6 +359,7 @@ model Application {
   candidate    Candidate      @relation(fields: [candidateId], references: [id], onDelete: Cascade)
   currentStage JobStage       @relation(fields: [currentStageId], references: [id])
   documents    Document[]
+  events       ApplicationEvent[]
 
   // "One ACTIVE application per candidate per requisition" is a PARTIAL unique
   // index added in a raw migration: Prisma cannot express WHERE on a unique
@@ -394,4 +398,67 @@ model Document {
   @@index([orgId, sha256])
   @@index([candidateId])
   @@map("documents")
+}
+
+enum ActorType {
+  USER
+  SYSTEM
+  CANDIDATE
+
+  @@map("actor_types")
+}
+
+enum ApplicationEventType {
+  APPLICATION_RECEIVED
+  STAGE_CHANGED
+  REJECTED
+  WITHDRAWN
+  HIRED
+  REOPENED
+  NOTE_ADDED
+  RESUME_PARSED
+  RESUME_PARSE_FAILED
+  MARKED_STAGNANT
+
+  @@map("application_event_types")
+}
+
+/// The source of truth for an application's history.
+///
+/// Append-only, enforced by a database trigger rather than convention.
+/// `Application.currentStageId` is a denormalized read model derived from this,
+/// rebuildable by replaying the log — which a test asserts.
+///
+/// The audit trail, the analytics and the stagnation sweep are all readers of
+/// this one table rather than three separate mechanisms.
+model ApplicationEvent {
+  id            String               @id @default(uuid()) @db.Uuid
+  orgId         String               @map("org_id") @db.Uuid
+  applicationId String               @map("application_id") @db.Uuid
+  /// Monotonic per application. The unique index below makes a lost update
+  /// impossible: two concurrent writers cannot both claim the same sequence.
+  seq           Int
+  type          ApplicationEventType
+  fromStageId   String?              @map("from_stage_id") @db.Uuid
+  toStageId     String?              @map("to_stage_id") @db.Uuid
+
+  actorType ActorType @default(USER) @map("actor_type")
+  /// Set only when actorType is USER. A check constraint enforces that, so a
+  /// cron sweep can never be attributed to a person.
+  actorId   String?   @map("actor_id") @db.Uuid
+  /// Required for REJECT, REGRESS and REOPEN — the state machine refuses those
+  /// without one, so the trail always explains a reversal.
+  reason    String?
+  metadata  Json?
+
+  occurredAt DateTime @default(now()) @map("occurred_at")
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  fromStage   JobStage?   @relation("EventFromStage", fields: [fromStageId], references: [id], onDelete: SetNull)
+  toStage     JobStage?   @relation("EventToStage", fields: [toStageId], references: [id], onDelete: SetNull)
+  actor       User?       @relation("EventActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@unique([applicationId, seq])
+  @@index([applicationId, occurredAt])
+  @@map("application_events")
 }

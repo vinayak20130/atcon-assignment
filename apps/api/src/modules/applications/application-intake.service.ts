@@ -89,6 +89,27 @@ export class ApplicationIntakeService {
           select: { id: true },
         });
 
+        // Sequence 1. Every later event increments from here, and the unique
+        // index on (applicationId, seq) makes a lost update impossible.
+        //
+        // actorType is CANDIDATE with a null actorId: they genuinely performed
+        // this action, but they are not a User and never will be.
+        await tx.applicationEvent.create({
+          data: {
+            orgId: job.orgId,
+            applicationId: application.id,
+            seq: 1,
+            type: 'APPLICATION_RECEIVED',
+            toStageId: firstStage.id,
+            actorType: 'CANDIDATE',
+            metadata: {
+              source: 'CAREERS_PAGE',
+              candidateWasNew: candidate.isNew,
+              matchedOn: candidate.matchedOn,
+            } as Prisma.InputJsonValue,
+          },
+        });
+
         await tx.document.create({
           data: {
             orgId: job.orgId,
