@@ -59,11 +59,23 @@ const CURRENT_TOKENS = /\b(present|current|now)\b/i;
 // together instead of scattering it.
 const TITLE_COMPANY_SEPARATOR = /\s*,\s+|\s+(?:at|@)\s+|\s*[|–—]\s+|\s+-\s+/;
 
+// Real headings carry qualifiers — "Professional Experience", "Technical
+// Skills", "Relevant Coursework" — so one optional leading adjective is
+// allowed. Found by running the parser over an actual resume, where
+// "Professional Experience" went undetected and the whole document fell back to
+// a full-text scan.
+// The trailing whitespace is INSIDE the optional group. Written as
+// `(?:...)\s+` and then suffixed with `?`, the `?` would apply to the `\s+` and
+// make it lazy rather than making the qualifier optional — which silently
+// stopped every unqualified heading from matching.
+const QUALIFIER = String.raw`(?:(?:work|professional|relevant|technical|core|other)\s+)?`;
+
 const SECTION_PATTERNS: Array<[keyof Sections, RegExp]> = [
-  ['experience', /^(work\s+)?(experience|employment|career\s+history)\b/i],
-  ['education', /^(education|academic|qualifications)\b/i],
-  ['skills', /^(technical\s+)?(skills|technologies|tech\s+stack)\b/i],
-  ['summary', /^(summary|profile|objective|about)\b/i],
+  ['experience', new RegExp(`^${QUALIFIER}(experience|employment|career\\s+history)\\b`, 'i')],
+  ['education', new RegExp(`^${QUALIFIER}(education|academic|qualifications)\\b`, 'i')],
+  ['skills', new RegExp(`^${QUALIFIER}(skills|technologies|competencies|tech\\s+stack)\\b`, 'i')],
+  ['projects', new RegExp(`^${QUALIFIER}(projects|portfolio)\\b`, 'i')],
+  ['summary', new RegExp(`^${QUALIFIER}(summary|profile|objective|about)\\b`, 'i')],
 ];
 
 interface Sections {
@@ -71,6 +83,7 @@ interface Sections {
   experience: string[];
   education: string[];
   skills: string[];
+  projects: string[];
   summary: string[];
 }
 
@@ -87,7 +100,14 @@ function detectSection(line: string): keyof Sections | null {
 }
 
 function splitIntoSections(lines: string[]): Sections {
-  const sections: Sections = { header: [], experience: [], education: [], skills: [], summary: [] };
+  const sections: Sections = {
+    header: [],
+    experience: [],
+    education: [],
+    skills: [],
+    projects: [],
+    summary: [],
+  };
   let current: keyof Sections = 'header';
 
   for (const line of lines) {
@@ -133,6 +153,30 @@ function splitTitleAndCompany(text: string): { title: string | null; company: st
   };
 }
 
+// PDF extraction flattens a two-column entry header — role on the left, dates
+// on the right; employer on the left, location on the right — into two separate
+// lines. So a dated line holding nothing but a role means the employer is on
+// the line BELOW, and reading that role as the company is precisely the
+// category error this file's header warns about.
+const ROLE_WORDS =
+  /\b(developer|engineer|manager|designer|analyst|intern|consultant|architect|lead|director|scientist|specialist|administrator|associate|officer|founder|head)\b/i;
+
+// "InnovateLabs Gurugram, India" is a single line only because those columns
+// were flattened; the employer is the part before the location.
+const TRAILING_LOCATION = /^(.+?)\s+([A-Z][\w.'-]*(?:\s+[A-Z][\w.'-]*)*),\s*([A-Za-z][\w.'-]+)$/;
+
+// A corporate suffix is shaped exactly like the region half of "City, Country",
+// so it is excluded by name — otherwise "Booz Allen Hamilton, LLP" is cut down
+// to "Booz".
+const COMPANY_SUFFIX =
+  /^(inc|llc|llp|ltd|limited|corp|corporation|co|plc|gmbh|ag|sa|bv|pvt|private|pte|srl)\.?$/i;
+
+function stripTrailingLocation(line: string): string {
+  const match = TRAILING_LOCATION.exec(line);
+  if (!match || COMPANY_SUFFIX.test(match[3] ?? '')) return line;
+  return (match[1] ?? line).trim();
+}
+
 // The reliable anchor is a date range, so entries are found by locating dates
 // and reading the surrounding lines. Layout varies enormously, so confidence
 // reflects how much of the entry was actually recovered rather than asserting
@@ -148,15 +192,31 @@ function extractExperiences(lines: string[]): ParsedExperience[] {
     const withoutDates = line.replace(DATE_RANGE, '').replace(/[|•·,–—-]+\s*$/, '').trim();
     const previous = (lines[index - 1] ?? '').trim();
 
-    const source =
-      withoutDates.length > 2
-        ? withoutDates
-        : previous.length > 2 && !DATE_RANGE.test(previous)
-          ? previous
-          : '';
+    const fromDatedLine = withoutDates.length > 2;
+    const source = fromDatedLine
+      ? withoutDates
+      : previous.length > 2 && !DATE_RANGE.test(previous)
+        ? previous
+        : '';
     if (!source) continue;
 
-    const { title, company } = splitTitleAndCompany(source.replace(/^[-*•\s]+/, ''));
+    let { title, company } = splitTitleAndCompany(source.replace(/^[-*•\s]+/, ''));
+
+    // Only when the role came off the dated line itself: if it came off the
+    // previous line, the line below is the dated line, not the employer.
+    if (title === null && fromDatedLine && ROLE_WORDS.test(company)) {
+      const next = (lines[index + 1] ?? '').trim();
+      const looksLikeEntryHeader =
+        next.length >= 2 &&
+        next.length <= 80 &&
+        !/^[-*•·]/.test(next) &&
+        !DATE_RANGE.test(next);
+      if (looksLikeEntryHeader) {
+        title = company;
+        company = stripTrailingLocation(next);
+      }
+    }
+
     if (company.length < 2 || company.length > 100) continue;
 
     experiences.push({
@@ -178,8 +238,19 @@ function extractSkills(skillLines: string[]): ParsedField<string[]> {
 
   const skills = joined
     .split(/[,;|•·\n]+/)
-    .map((skill) => skill.replace(/^[-*\s]+/, '').replace(/^[A-Za-z ]+:\s*/, '').trim())
-    .filter((skill) => skill.length >= 2 && skill.length <= 30 && /[a-zA-Z]/.test(skill));
+    .map((skill) =>
+      skill
+        .replace(/^[-*\s]+/, '')
+        // Strip a leading grouping label. The character class allows & and /,
+        // because real resumes write "DevOps & Tools:" and "Backend/Infra:".
+        .replace(/^[A-Za-z][A-Za-z &/]*:\s*/, '')
+        .trim(),
+    )
+    .filter((skill) => skill.length >= 2 && skill.length <= 30 && /[a-zA-Z]/.test(skill))
+    // Drop page furniture. PDF extraction interleaves footers with content, and
+    // "1 of 2 --" arriving as a skill is how you notice.
+    .filter((skill) => !/^\d+\s*(of|\/)\s*\d+/.test(skill))
+    .filter((skill) => /[a-zA-Z]{2}/.test(skill.replace(/[^a-zA-Z]/g, '')));
 
   const unique = [...new Set(skills)].slice(0, 40);
   // A dedicated skills section is a strong signal; scraping from prose is not.
