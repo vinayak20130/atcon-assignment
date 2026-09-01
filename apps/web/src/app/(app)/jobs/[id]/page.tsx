@@ -5,6 +5,8 @@ import { useParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { ApiError, api, since } from '@/lib/api';
 
+const CAL_LINK = 'https://cal.com/vinayakits30/15min';
+
 interface Stage {
   id: string;
   name: string;
@@ -23,7 +25,15 @@ interface AppRow {
   status: string;
   lastActivityAt: string;
   candidate: { id: string; fullName: string; primaryEmail: string | null };
-  currentStage: { id: string; name: string; position: number };
+  currentStage: { id: string; name: string; position: number; type: string };
+}
+
+/** Open Cal.com pre-filled with the candidate's name as the booking note. */
+function openCalLink(candidateName: string, jobTitle: string) {
+  const url = new URL(CAL_LINK);
+  url.searchParams.set('name', candidateName);
+  url.searchParams.set('notes', `Interview for ${jobTitle}`);
+  window.open(url.toString(), '_blank', 'noopener,noreferrer');
 }
 
 export default function BoardPage() {
@@ -42,13 +52,17 @@ export default function BoardPage() {
 
   useEffect(load, [load]);
 
-  // fromStageId is sent from what this board last rendered. That is what turns
-  // a stale view into a clean 409 rather than one recruiter silently
-  // overwriting another's decision.
+  // fromStageId is sent from what this board last rendered. That turns a stale
+  // view into a clean 409 rather than one recruiter silently overwriting another.
   async function move(application: AppRow, toStage: Stage) {
-    const needsReason = ['REJECTED'].includes(toStage.type);
+    const isRegression = toStage.position < application.currentStage.position;
+    const needsReason = toStage.type === 'REJECTED' || isRegression;
     const reason = needsReason
-      ? window.prompt(`Why is ${application.candidate.fullName} not moving forward?`)
+      ? window.prompt(
+          toStage.type === 'REJECTED'
+            ? `Why is ${application.candidate.fullName} not moving forward?`
+            : `Why is ${application.candidate.fullName} moving back to ${toStage.name}?`,
+        )
       : undefined;
     if (needsReason && !reason) return;
 
@@ -67,8 +81,6 @@ export default function BoardPage() {
       load();
     } catch (caught) {
       if (caught instanceof ApiError) {
-        // A stale board is the one failure worth handling specially: reload so
-        // the recruiter sees what actually happened rather than an error.
         if (caught.status === 409) load();
         setNotice({ tone: 'error', text: caught.message });
       }
@@ -90,8 +102,8 @@ export default function BoardPage() {
         </div>
         <h1>{job.title}</h1>
         <p className="lede">
-          These stages were copied onto this requisition when it was created, so editing the
-          template they came from cannot reshape it underneath these candidates.
+          Move candidates through the pipeline. Interview stages show a Cal.com booking button —
+          schedule the call, then grade and advance once done.
         </p>
       </div>
 
@@ -104,6 +116,8 @@ export default function BoardPage() {
       <div className="board">
         {job.stages.map((stage) => {
           const cards = active.filter((a) => a.currentStage.id === stage.id);
+          const isInterviewStage = stage.type === 'INTERVIEW' || stage.type === 'ASSESSMENT';
+
           return (
             <section key={stage.id} className="column">
               <header className="column-head">
@@ -122,9 +136,22 @@ export default function BoardPage() {
                       <div className="cand-name">{application.candidate.fullName}</div>
                       <div className="cand-meta">{since(application.lastActivityAt)}</div>
                     </Link>
+
+                    {/* Cal.com booking — shown only on interview stages */}
+                    {isInterviewStage && (
+                      <button
+                        className="btn btn-sm"
+                        style={{ marginTop: 6, width: '100%', background: 'var(--accent)', color: '#fff' }}
+                        onClick={() => openCalLink(application.candidate.fullName, job.title)}
+                      >
+                        📅 Schedule interview
+                      </button>
+                    )}
+
+                    {/* Move to next stage — after interview recruiter picks outcome */}
                     <select
                       className="btn btn-sm"
-                      style={{ marginTop: 8, width: '100%' }}
+                      style={{ marginTop: 6, width: '100%' }}
                       disabled={moving === application.id}
                       value=""
                       onChange={(event) => {
@@ -132,7 +159,7 @@ export default function BoardPage() {
                         if (target) void move(application, target);
                       }}
                     >
-                      <option value="">Move to…</option>
+                      <option value="">{isInterviewStage ? 'Record outcome…' : 'Move to…'}</option>
                       {movable
                         .filter((s) => s.id !== stage.id)
                         .map((s) => (

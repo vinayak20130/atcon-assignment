@@ -235,9 +235,13 @@ export function evaluateTransition(
     );
   }
 
-  // Scorecards gate forward movement only. Rejecting must never be blocked on
-  // paperwork, or recruiters will leave people sitting in a stage.
-  if (isForwardMove && fromStage.requiresScorecard && facts.pendingScorecardCount > 0) {
+  // Scorecards block a direct hire out of a scored stage. An offer letter is
+  // still an active-stage step recruiters can use to shortlist after interview.
+  if (
+    kind === TransitionKind.HIRE &&
+    fromStage.requiresScorecard &&
+    facts.pendingScorecardCount > 0
+  ) {
     return deny(
       TransitionDenialCode.SCORECARD_REQUIRED,
       `${facts.pendingScorecardCount} scorecard(s) still outstanding for ${fromStage.name}.`,
